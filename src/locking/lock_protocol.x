@@ -67,6 +67,21 @@ struct virLockSpaceProtocolCreateLockSpaceArgs {
     virLockSpaceProtocolNonNullString path;
 };
 
+struct virLockSpaceProtocolRememberSeclabelArgs {
+    virLockSpaceProtocolNonNullString model;
+    virLockSpaceProtocolNonNullString path;
+    virLockSpaceProtocolNonNullString label;
+};
+
+struct virLockSpaceProtocolRecallSeclabelArgs {
+    virLockSpaceProtocolNonNullString model;
+    virLockSpaceProtocolNonNullString path;
+};
+
+struct virLockSpaceProtocolRecallSeclabelRet {
+    virLockSpaceProtocolString label;
+    unsigned int ret;
+};
 
 /* Define the program number, protocol version and procedure numbers here. */
 const VIR_LOCK_SPACE_PROTOCOL_PROGRAM = 0xEA7BEEF;
@@ -145,5 +160,17 @@ enum virLockSpaceProtocolProcedure {
      * @generate: none
      * @acl: none
      */
-    VIR_LOCK_SPACE_PROTOCOL_PROC_CREATE_LOCKSPACE = 8
+    VIR_LOCK_SPACE_PROTOCOL_PROC_CREATE_LOCKSPACE = 8,
+
+    /**
+     * @generate: none
+     * @acl: none
+     */
+    VIR_LOCK_SPACE_PROTOCOL_PROC_REMEMBER_SECLABEL = 9,
+
+    /**
+     * @generate: none
+     * @acl: none
+     */
+    VIR_LOCK_SPACE_PROTOCOL_PROC_RECALL_SECLABEL = 10
 };
