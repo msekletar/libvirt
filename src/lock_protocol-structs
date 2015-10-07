@@ -39,6 +39,19 @@ struct virLockSpaceProtocolReleaseResourceArgs {
 struct virLockSpaceProtocolCreateLockSpaceArgs {
         virLockSpaceProtocolNonNullString path;
 };
+struct virLockSpaceProtocolRememberSeclabelArgs {
+        virLockSpaceProtocolNonNullString model;
+        virLockSpaceProtocolNonNullString path;
+        virLockSpaceProtocolNonNullString label;
+};
+struct virLockSpaceProtocolRecallSeclabelArgs {
+        virLockSpaceProtocolNonNullString model;
+        virLockSpaceProtocolNonNullString path;
+};
+struct virLockSpaceProtocolRecallSeclabelRet {
+        virLockSpaceProtocolString label;
+        u_int                      ret;
+};
 enum virLockSpaceProtocolProcedure {
         VIR_LOCK_SPACE_PROTOCOL_PROC_REGISTER = 1,
         VIR_LOCK_SPACE_PROTOCOL_PROC_RESTRICT = 2,
@@ -48,4 +61,6 @@ enum virLockSpaceProtocolProcedure {
         VIR_LOCK_SPACE_PROTOCOL_PROC_ACQUIRE_RESOURCE = 6,
         VIR_LOCK_SPACE_PROTOCOL_PROC_RELEASE_RESOURCE = 7,
         VIR_LOCK_SPACE_PROTOCOL_PROC_CREATE_LOCKSPACE = 8,
+        VIR_LOCK_SPACE_PROTOCOL_PROC_REMEMBER_SECLABEL = 9,
+        VIR_LOCK_SPACE_PROTOCOL_PROC_RECALL_SECLABEL = 10,
 };

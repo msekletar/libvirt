@@ -430,3 +430,24 @@ virLockSpaceProtocolDispatchCreateLockSpace(virNetServerPtr server ATTRIBUTE_UNU
     virMutexUnlock(&priv->lock);
     return rv;
 }
+
+static int
+virLockSpaceProtocolDispatchRememberSeclabel(virNetServerPtr server ATTRIBUTE_UNUSED,
+                                             virNetServerClientPtr client ATTRIBUTE_UNUSED,
+                                             virNetMessagePtr msg ATTRIBUTE_UNUSED,
+                                             virNetMessageErrorPtr rerr ATTRIBUTE_UNUSED,
+                                             virLockSpaceProtocolRememberSeclabelArgs *args ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
+static int
+virLockSpaceProtocolDispatchRecallSeclabel(virNetServerPtr server ATTRIBUTE_UNUSED,
+                                           virNetServerClientPtr client ATTRIBUTE_UNUSED,
+                                           virNetMessagePtr msg ATTRIBUTE_UNUSED,
+                                           virNetMessageErrorPtr rerr ATTRIBUTE_UNUSED,
+                                           virLockSpaceProtocolRecallSeclabelArgs *args ATTRIBUTE_UNUSED,
+                                           virLockSpaceProtocolRecallSeclabelRet *ret ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
