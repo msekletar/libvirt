@@ -271,6 +271,8 @@ LOCK_DAEMON_SOURCES = \
 		locking/lock_daemon_config.c \
 		locking/lock_daemon_dispatch.c \
 		locking/lock_daemon_dispatch.h \
+		locking/lock_daemon_seclabels.c \
+		locking/lock_daemon_seclabels.h \
 		$(NULL)
 
 locking/lock_daemon_dispatch_stubs.h: $(LOCK_PROTOCOL) \
