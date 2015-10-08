@@ -56,6 +56,8 @@ struct _virLockManagerLockDaemonResource {
 };
 
 struct _virLockManagerLockDaemonPrivate {
+    virLockManagerObjectType type;
+
     unsigned char uuid[VIR_UUID_BUFLEN];
     char *name;
     int id;
@@ -262,11 +264,13 @@ virLockManagerLockDaemonConnect(virLockManagerPtr lock,
                                 int *counter)
 {
     virNetClientPtr client;
+    virLockManagerLockDaemonPrivatePtr priv = lock->privateData;
 
     if (!(client = virLockManagerLockDaemonConnectionNew(geteuid() == 0, program)))
         return NULL;
 
-    if (virLockManagerLockDaemonConnectionRegister(lock,
+    if (priv->type == VIR_LOCK_MANAGER_OBJECT_TYPE_DOMAIN &&
+        virLockManagerLockDaemonConnectionRegister(lock,
                                                    client,
                                                    *program,
                                                    counter) < 0)
@@ -413,6 +417,8 @@ static int virLockManagerLockDaemonNew(virLockManagerPtr lock,
         return -1;
     lock->privateData = priv;
 
+    priv->type = type;
+
     switch (type) {
     case VIR_LOCK_MANAGER_OBJECT_TYPE_DOMAIN:
         for (i = 0; i < nparams; i++) {
@@ -450,6 +456,10 @@ static int virLockManagerLockDaemonNew(virLockManagerPtr lock,
                            _("Missing UUID parameter for domain object"));
             return -1;
         }
+        break;
+
+    case VIR_LOCK_MANAGER_OBJECT_TYPE_SECLABEL:
+        /* nada */
         break;
 
     default:
