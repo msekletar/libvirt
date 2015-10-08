@@ -285,6 +285,39 @@ typedef int (*virLockDriverInquire)(virLockManagerPtr man,
                                     unsigned int flags);
 
 
+/**
+ * virLockDriverRemember:
+ * @man: the lock manager context
+ * @path: path to the file
+ * @model: security label model
+ * @label: security label to remember
+ *
+ * Remember given security label.
+ *
+ * Returns 0 on success, or -1 on failure.
+ */
+typedef int (*virLockDriverRemember)(virLockManagerPtr man,
+                                     const char *path,
+                                     const char *model,
+                                     const char *label);
+
+/**
+ * virLockDriverRecall:
+ * @man: the lock manager context
+ * @path: path to the file
+ * @model: security label model
+ * @label: security label to restore
+ *
+ * Recall previously saved security label
+ *
+ * Returns: 1 if @path is still in use (@label untouched),
+ *          0 if @path seclabel should be restored (@label set)
+ *          -1 on failure (e.g. @path not found in records)
+ */
+typedef int (*virLockDriverRecall)(virLockManagerPtr man,
+                                   const char *path,
+                                   const char *model,
+                                   char **label);
 struct _virLockManager {
     virLockDriverPtr driver;
     void *privateData;
@@ -313,6 +346,9 @@ struct _virLockDriver {
     virLockDriverAcquire drvAcquire;
     virLockDriverRelease drvRelease;
     virLockDriverInquire drvInquire;
+
+    virLockDriverRemember drvRemember;
+    virLockDriverRecall drvRecall;
 };
 
 
