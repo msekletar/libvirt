@@ -53,4 +53,12 @@ int virLockDaemonAddLockSpace(virLockDaemonPtr lockd,
 virLockSpacePtr virLockDaemonFindLockSpace(virLockDaemonPtr lockd,
                                            const char *path);
 
+int virLockDaemonRememberSeclabel(virLockDaemonPtr lockd,
+                                  const char *path,
+                                  const char *model,
+                                  const char *label);
+int virLockDaemonRecallSeclabel(virLockDaemonPtr lockd,
+                                const char *path,
+                                const char *model,
+                                char **label);
 #endif /* __VIR_LOCK_DAEMON_H__ */

@@ -24,6 +24,7 @@
 
 #include "rpc/virnetdaemon.h"
 #include "rpc/virnetserverclient.h"
+#include "viralloc.h"
 #include "virlog.h"
 #include "virstring.h"
 #include "lock_daemon.h"
@@ -36,6 +37,7 @@
 VIR_LOG_INIT("locking.lock_daemon_dispatch");
 
 #include "lock_daemon_dispatch_stubs.h"
+#include "lock_daemon_seclabels.h"
 
 static int
 virLockSpaceProtocolDispatchAcquireResource(virNetServerPtr server ATTRIBUTE_UNUSED,
@@ -433,21 +435,66 @@ virLockSpaceProtocolDispatchCreateLockSpace(virNetServerPtr server ATTRIBUTE_UNU
 
 static int
 virLockSpaceProtocolDispatchRememberSeclabel(virNetServerPtr server ATTRIBUTE_UNUSED,
-                                             virNetServerClientPtr client ATTRIBUTE_UNUSED,
+                                             virNetServerClientPtr client,
                                              virNetMessagePtr msg ATTRIBUTE_UNUSED,
-                                             virNetMessageErrorPtr rerr ATTRIBUTE_UNUSED,
-                                             virLockSpaceProtocolRememberSeclabelArgs *args ATTRIBUTE_UNUSED)
+                                             virNetMessageErrorPtr rerr,
+                                             virLockSpaceProtocolRememberSeclabelArgs *args)
 {
-    return 0;
+    int rv = -1;
+    virLockDaemonClientPtr priv =
+        virNetServerClientGetPrivateData(client);
+
+    virMutexLock(&priv->lock);
+
+    if (virLockDaemonRememberSeclabel(lockDaemon,
+                                      args->path, args->model, args->label) < 0)
+        goto cleanup;
+
+    rv = 0;
+ cleanup:
+    if (rv < 0)
+        virNetMessageSaveError(rerr);
+    virMutexUnlock(&priv->lock);
+    return rv;
 }
 
 static int
 virLockSpaceProtocolDispatchRecallSeclabel(virNetServerPtr server ATTRIBUTE_UNUSED,
-                                           virNetServerClientPtr client ATTRIBUTE_UNUSED,
+                                           virNetServerClientPtr client,
                                            virNetMessagePtr msg ATTRIBUTE_UNUSED,
-                                           virNetMessageErrorPtr rerr ATTRIBUTE_UNUSED,
-                                           virLockSpaceProtocolRecallSeclabelArgs *args ATTRIBUTE_UNUSED,
-                                           virLockSpaceProtocolRecallSeclabelRet *ret ATTRIBUTE_UNUSED)
+                                           virNetMessageErrorPtr rerr,
+                                           virLockSpaceProtocolRecallSeclabelArgs *args,
+                                           virLockSpaceProtocolRecallSeclabelRet *ret)
 {
-    return 0;
+    int rv = -1;
+    int funcRet;
+    virLockDaemonClientPtr priv =
+        virNetServerClientGetPrivateData(client);
+    char *label = NULL;
+    char **label_p = NULL;
+
+    virMutexLock(&priv->lock);
+
+    memset(ret, 0, sizeof(*ret));
+
+    funcRet = virLockDaemonRecallSeclabel(lockDaemon,
+                                          args->path, args->model, &label);
+
+    if (funcRet == 0 &&
+        (VIR_ALLOC(label_p) < 0 ||
+         VIR_STRDUP(*label_p, label) < 0))
+        goto cleanup;
+
+    ret->label = label_p;
+    ret->ret = funcRet;
+    rv = 0;
+
+ cleanup:
+    if (rv < 0) {
+        VIR_FREE(label_p);
+        virNetMessageSaveError(rerr);
+    }
+    virMutexUnlock(&priv->lock);
+    VIR_FREE(label);
+    return rv;
 }

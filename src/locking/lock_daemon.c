@@ -49,6 +49,7 @@
 #include "virgettext.h"
 
 #include "locking/lock_daemon_dispatch.h"
+#include "locking/lock_daemon_seclabels.h"
 #include "locking/lock_protocol.h"
 
 #include "configmake.h"
@@ -64,6 +65,7 @@ struct _virLockDaemon {
     virNetDaemonPtr dmn;
     virHashTablePtr lockspaces;
     virLockSpacePtr defaultLockspace;
+    virSeclabelSpacePtr seclabelSpace;
 };
 
 virLockDaemonPtr lockDaemon = NULL;
@@ -122,6 +124,7 @@ virLockDaemonFree(virLockDaemonPtr lockd)
     virObjectUnref(lockd->dmn);
     virHashFree(lockd->lockspaces);
     virLockSpaceFree(lockd->defaultLockspace);
+    virSeclabelSpaceFree(lockd->seclabelSpace);
 
     VIR_FREE(lockd);
 }
@@ -181,6 +184,9 @@ virLockDaemonNew(virLockDaemonConfigPtr config, bool privileged)
     if (!(lockd->defaultLockspace = virLockSpaceNew(NULL)))
         goto error;
 
+    if (!(lockd->seclabelSpace = virSeclabelSpaceNew()))
+        goto error;
+
     return lockd;
 
  error:
@@ -195,6 +201,7 @@ virLockDaemonNewPostExecRestart(virJSONValuePtr object, bool privileged)
     virLockDaemonPtr lockd;
     virJSONValuePtr child;
     virJSONValuePtr lockspaces;
+    virJSONValuePtr seclabelSpace;
     virNetServerPtr srv;
     size_t i;
     ssize_t n;
@@ -250,6 +257,14 @@ virLockDaemonNewPostExecRestart(virJSONValuePtr object, bool privileged)
         }
     }
 
+    if (!(seclabelSpace = virJSONValueObjectGet(object, "seclabelSpace"))) {
+        /* It's okay, if there's not seclabel space info. */
+        if (!(lockd->seclabelSpace = virSeclabelSpaceNew()))
+            goto error;
+    } else if (!(lockd->seclabelSpace = virSeclabelSpacePostExecRestart(seclabelSpace))) {
+        goto error;
+    }
+
     if (virJSONValueObjectHasKey(object, "daemon")) {
         if (!(child = virJSONValueObjectGet(object, "daemon"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -281,6 +296,26 @@ virLockDaemonNewPostExecRestart(virJSONValuePtr object, bool privileged)
  error:
     virLockDaemonFree(lockd);
     return NULL;
+}
+
+
+int virLockDaemonRememberSeclabel(virLockDaemonPtr lockd,
+                                  const char *path,
+                                  const char *model,
+                                  const char *label)
+{
+    return  virSeclabelSpaceRemember(lockd->seclabelSpace,
+                                     path, model, label);
+}
+
+
+int virLockDaemonRecallSeclabel(virLockDaemonPtr lockd,
+                                const char *path,
+                                const char *model,
+                                char **label)
+{
+    return virSeclabelSpaceRecall(lockd->seclabelSpace,
+                                  path, model, label);
 }
 
 
@@ -1011,6 +1046,7 @@ virLockDaemonPreExecRestart(const char *state_file,
     char *magic;
     virHashKeyValuePairPtr pairs = NULL, tmp;
     virJSONValuePtr lockspaces;
+    virJSONValuePtr seclabelSpace;
 
     VIR_DEBUG("Running pre-restart exec");
 
@@ -1054,6 +1090,14 @@ virLockDaemonPreExecRestart(const char *state_file,
         }
 
         tmp++;
+    }
+
+    if (!(seclabelSpace = virSeclabelSpacePreExecRestart(lockDaemon->seclabelSpace)))
+        goto cleanup;
+
+    if (virJSONValueObjectAppend(object, "seclabelSpace", seclabelSpace) < 0) {
+        virJSONValueFree(seclabelSpace);
+        goto cleanup;
     }
 
     if (!(magic = virLockDaemonGetExecRestartMagic()))
