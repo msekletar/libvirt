@@ -35,4 +35,6 @@ void virSecurityDACSetDynamicOwnership(virSecurityManagerPtr mgr,
 void virSecurityDACSetChownCallback(virSecurityManagerPtr mgr,
                                     virSecurityManagerDACChownCallback chownCallback);
 
+void virSecurityDACSetLockingPlugin(virSecurityManagerPtr mgr,
+                                    virLockManagerPluginPtr lockPlugin);
 #endif /* __VIR_SECURITY_DAC */

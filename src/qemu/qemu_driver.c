@@ -422,7 +422,8 @@ qemuSecurityInit(virQEMUDriverPtr driver)
                                              cfg->user,
                                              cfg->group,
                                              flags,
-                                             qemuSecurityChownCallback)))
+                                             qemuSecurityChownCallback,
+                                             driver->lockManager)))
             goto error;
         if (!stack) {
             if (!(stack = virSecurityManagerNewStack(mgr)))

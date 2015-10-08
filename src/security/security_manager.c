@@ -141,7 +141,8 @@ virSecurityManagerNewDAC(const char *virtDriver,
                          uid_t user,
                          gid_t group,
                          unsigned int flags,
-                         virSecurityManagerDACChownCallback chownCallback)
+                         virSecurityManagerDACChownCallback chownCallback,
+                         virLockManagerPluginPtr lockPlugin)
 {
     virSecurityManagerPtr mgr;
 
@@ -162,6 +163,7 @@ virSecurityManagerNewDAC(const char *virtDriver,
 
     virSecurityDACSetDynamicOwnership(mgr, flags & VIR_SECURITY_MANAGER_DYNAMIC_OWNERSHIP);
     virSecurityDACSetChownCallback(mgr, chownCallback);
+    virSecurityDACSetLockingPlugin(mgr, lockPlugin);
 
     return mgr;
 }

@@ -26,6 +26,7 @@
 # include "domain_conf.h"
 # include "vircommand.h"
 # include "virstoragefile.h"
+# include "locking/lock_manager.h"
 
 typedef struct _virSecurityManager virSecurityManager;
 typedef virSecurityManager *virSecurityManagerPtr;
@@ -71,7 +72,8 @@ virSecurityManagerPtr virSecurityManagerNewDAC(const char *virtDriver,
                                                uid_t user,
                                                gid_t group,
                                                unsigned int flags,
-                                               virSecurityManagerDACChownCallback chownCallback);
+                                               virSecurityManagerDACChownCallback chownCallback,
+                                               virLockManagerPluginPtr lockPlugin);
 
 int virSecurityManagerPreFork(virSecurityManagerPtr mgr);
 void virSecurityManagerPostFork(virSecurityManagerPtr mgr);
