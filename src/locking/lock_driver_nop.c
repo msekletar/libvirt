@@ -101,6 +101,27 @@ static void virLockManagerNopFree(virLockManagerPtr lock ATTRIBUTE_UNUSED)
 {
 }
 
+static int
+virLockManagerNopRemember(virLockManagerPtr lock ATTRIBUTE_UNUSED,
+                          const char *path ATTRIBUTE_UNUSED,
+                          const char *model ATTRIBUTE_UNUSED,
+                          const char *label ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
+static int
+virLockManagerNopRecall(virLockManagerPtr lock ATTRIBUTE_UNUSED,
+                        const char *path ATTRIBUTE_UNUSED,
+                        const char *model ATTRIBUTE_UNUSED,
+                        char **label)
+{
+    if (label)
+        *label = NULL;
+
+    return 0;
+}
+
 virLockDriver virLockDriverNop =
 {
     .version = VIR_LOCK_MANAGER_VERSION,
@@ -118,4 +139,7 @@ virLockDriver virLockDriverNop =
     .drvRelease = virLockManagerNopRelease,
 
     .drvInquire = virLockManagerNopInquire,
+
+    .drvRemember = virLockManagerNopRemember,
+    .drvRecall = virLockManagerNopRecall,
 };
