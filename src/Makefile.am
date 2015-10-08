@@ -2943,6 +2943,7 @@ libvirt_lxc_LDADD =			\
 		libvirt-net-rpc-server.la \
 		libvirt-net-rpc.la \
 		libvirt_security_manager.la \
+		libvirt_driver.la \
 		libvirt_conf.la \
 		libvirt_util.la \
 		../gnulib/lib/libgnu.la

@@ -206,12 +206,38 @@ virSecurityDACGetImageIds(virSecurityLabelDefPtr seclabel,
  * Returns: 0 on success, -1 on failure
  */
 static int
-virSecurityDACRememberLabel(virSecurityDACDataPtr priv ATTRIBUTE_UNUSED,
-                            const char *path ATTRIBUTE_UNUSED,
-                            uid_t uid ATTRIBUTE_UNUSED,
-                            gid_t gid ATTRIBUTE_UNUSED)
+virSecurityDACRememberLabel(virSecurityDACDataPtr priv,
+                            const char *path,
+                            uid_t uid,
+                            gid_t gid)
 {
-    return 0;
+    int ret = -1;
+    virLockManagerPtr lockManager = NULL;
+    char *label;
+
+    if (!priv->lockPlugin)
+        return 0;
+
+    if (virAsprintf(&label, "+%u:+%u",
+                    (unsigned int) uid,
+                    (unsigned int) gid) < 0)
+        goto cleanup;
+
+    lockManager = virLockManagerNew(virLockManagerPluginGetDriver(priv->lockPlugin),
+                                    VIR_LOCK_MANAGER_OBJECT_TYPE_SECLABEL,
+                                    0, NULL, 0);
+    if (!lockManager)
+        goto cleanup;
+
+    if (virLockManagerRememberSeclabel(lockManager, path,
+                                       SECURITY_DAC_NAME, label) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(label);
+    virLockManagerFree(lockManager);
+    return ret;
 }
 
 /**
@@ -230,12 +256,56 @@ virSecurityDACRememberLabel(virSecurityDACDataPtr priv ATTRIBUTE_UNUSED,
  *         -1 on failure (@uid and @gid not touched)
  */
 static int
-virSecurityDACRecallLabel(virSecurityDACDataPtr priv ATTRIBUTE_UNUSED,
-                          const char *path ATTRIBUTE_UNUSED,
-                          uid_t *uid ATTRIBUTE_UNUSED,
-                          gid_t *gid ATTRIBUTE_UNUSED)
+virSecurityDACRecallLabel(virSecurityDACDataPtr priv,
+                          const char *path,
+                          uid_t *uid,
+                          gid_t *gid)
 {
-    return 0;
+    int rv, ret = -1;
+    virLockManagerPtr lockManager = NULL;
+    char *label = NULL;
+
+    if (!priv->lockPlugin)
+        return 0;
+
+    lockManager = virLockManagerNew(virLockManagerPluginGetDriver(priv->lockPlugin),
+                                    VIR_LOCK_MANAGER_OBJECT_TYPE_SECLABEL,
+                                    0, NULL, 0);
+    if (!lockManager)
+        goto cleanup;
+
+    rv = virLockManagerRecallSeclabel(lockManager, path,
+                                      SECURITY_DAC_NAME, &label);
+
+    VIR_DEBUG("path=%s label=%s", path, label);
+
+    if (rv < 0) {
+        /* Okay, path was not found, or there was some other error. At any
+         * rate, claim success here. */
+        ret = 0;
+        goto cleanup;
+    } else if (rv > 0) {
+        /* Okay, path was found, but is still in use. Notify caller so that we
+         * don't relabel anything. */
+        ret = 1;
+        goto cleanup;
+    }
+
+    if (!label) {
+        /* Okay, underlying lock driver does not know how to store seclabels.
+         * Fall back to defaults. */
+        ret = 0;
+        goto cleanup;
+    }
+
+    if (virParseOwnershipIds(label, uid, gid) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(label);
+    virLockManagerFree(lockManager);
+    return ret;
 }
 
 static virSecurityDriverStatus
