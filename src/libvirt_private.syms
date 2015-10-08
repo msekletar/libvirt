@@ -1092,7 +1092,9 @@ virLockManagerPluginNew;
 virLockManagerPluginRef;
 virLockManagerPluginUnref;
 virLockManagerPluginUsesState;
+virLockManagerRecallSeclabel;
 virLockManagerRelease;
+virLockManagerRememberSeclabel;
 
 
 # logging/log_manager.h

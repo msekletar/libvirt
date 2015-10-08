@@ -397,3 +397,35 @@ int virLockManagerFree(virLockManagerPtr lock)
 
     return 0;
 }
+
+int virLockManagerRememberSeclabel(virLockManagerPtr lock,
+                                   const char *path,
+                                   const char *model,
+                                   const char *label)
+{
+    VIR_DEBUG("lock=%p path=%s model=%s label=%s",
+              lock, path, model, label);
+
+    if (!lock)
+        return 0;
+
+    CHECK_MANAGER(drvRemember, 0);
+
+    return lock->driver->drvRemember(lock, path, model, label);
+}
+
+int virLockManagerRecallSeclabel(virLockManagerPtr lock,
+                                 const char *path,
+                                 const char *model,
+                                 char **label)
+{
+    VIR_DEBUG("lock=%p path=%s model=%s label=%p",
+              lock, path, model, label);
+
+    if (!lock)
+        return 0;
+
+    CHECK_MANAGER(drvRecall, 0);
+
+    return lock->driver->drvRecall(lock, path, model, label);
+}

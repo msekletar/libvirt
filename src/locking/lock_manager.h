@@ -67,4 +67,13 @@ int virLockManagerInquire(virLockManagerPtr manager,
 
 int virLockManagerFree(virLockManagerPtr manager);
 
+int virLockManagerRememberSeclabel(virLockManagerPtr manager,
+                                   const char *path,
+                                   const char *model,
+                                   const char *label);
+int virLockManagerRecallSeclabel(virLockManagerPtr manager,
+                                 const char *path,
+                                 const char *model,
+                                 char **label);
+
 #endif /* __VIR_LOCK_MANAGER_H__ */
