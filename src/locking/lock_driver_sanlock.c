@@ -456,7 +456,7 @@ static int virLockManagerSanlockDeinit(void)
 
 
 static int virLockManagerSanlockNew(virLockManagerPtr lock,
-                                    unsigned int type,
+                                    virLockManagerObjectType type,
                                     size_t nparams,
                                     virLockManagerParamPtr params,
                                     unsigned int flags)
@@ -747,7 +747,7 @@ virLockManagerSanlockCreateLease(virLockManagerSanlockDriverPtr driver,
 
 
 static int virLockManagerSanlockAddResource(virLockManagerPtr lock,
-                                            unsigned int type,
+                                            virLockManagerResourceType type,
                                             const char *name,
                                             size_t nparams,
                                             virLockManagerParamPtr params,

@@ -295,7 +295,7 @@ virLockDriverPtr virLockManagerPluginGetDriver(virLockManagerPluginPtr plugin)
  * Returns a new lock manager context
  */
 virLockManagerPtr virLockManagerNew(virLockDriverPtr driver,
-                                    unsigned int type,
+                                    virLockManagerObjectType type,
                                     size_t nparams,
                                     virLockManagerParamPtr params,
                                     unsigned int flags)
@@ -322,7 +322,7 @@ virLockManagerPtr virLockManagerNew(virLockDriverPtr driver,
 
 
 int virLockManagerAddResource(virLockManagerPtr lock,
-                              unsigned int type,
+                              virLockManagerResourceType type,
                               const char *name,
                               size_t nparams,
                               virLockManagerParamPtr params,

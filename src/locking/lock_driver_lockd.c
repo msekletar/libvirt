@@ -399,7 +399,7 @@ static void virLockManagerLockDaemonFree(virLockManagerPtr lock)
 
 
 static int virLockManagerLockDaemonNew(virLockManagerPtr lock,
-                                       unsigned int type,
+                                       virLockManagerObjectType type,
                                        size_t nparams,
                                        virLockManagerParamPtr params,
                                        unsigned int flags)
@@ -464,7 +464,7 @@ static int virLockManagerLockDaemonNew(virLockManagerPtr lock,
 
 
 static int virLockManagerLockDaemonAddResource(virLockManagerPtr lock,
-                                               unsigned int type,
+                                               virLockManagerResourceType type,
                                                const char *name,
                                                size_t nparams,
                                                virLockManagerParamPtr params,

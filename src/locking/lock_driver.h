@@ -171,7 +171,7 @@ typedef int (*virLockDriverDeinit)(void);
  * Returns 0 if successful initialized a new context, -1 on error
  */
 typedef int (*virLockDriverNew)(virLockManagerPtr man,
-                                unsigned int type,
+                                virLockManagerObjectType type,
                                 size_t nparams,
                                 virLockManagerParamPtr params,
                                 unsigned int flags);
@@ -218,7 +218,7 @@ typedef void (*virLockDriverFree)(virLockManagerPtr man);
  * Returns 0 on success, or -1 on failure
  */
 typedef int (*virLockDriverAddResource)(virLockManagerPtr man,
-                                        unsigned int type,
+                                        virLockManagerResourceType type,
                                         const char *name,
                                         size_t nparams,
                                         virLockManagerParamPtr params,

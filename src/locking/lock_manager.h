@@ -41,13 +41,13 @@ bool virLockManagerPluginUsesState(virLockManagerPluginPtr plugin);
 virLockDriverPtr virLockManagerPluginGetDriver(virLockManagerPluginPtr plugin);
 
 virLockManagerPtr virLockManagerNew(virLockDriverPtr driver,
-                                    unsigned int type,
+                                    virLockManagerObjectType type,
                                     size_t nparams,
                                     virLockManagerParamPtr params,
                                     unsigned int flags);
 
 int virLockManagerAddResource(virLockManagerPtr manager,
-                              unsigned int type,
+                              virLockManagerResourceType type,
                               const char *name,
                               size_t nparams,
                               virLockManagerParamPtr params,

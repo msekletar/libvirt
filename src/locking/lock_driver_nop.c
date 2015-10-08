@@ -48,7 +48,7 @@ static int virLockManagerNopDeinit(void)
 
 
 static int virLockManagerNopNew(virLockManagerPtr lock ATTRIBUTE_UNUSED,
-                                unsigned int type ATTRIBUTE_UNUSED,
+                                virLockManagerObjectType type ATTRIBUTE_UNUSED,
                                 size_t nparams ATTRIBUTE_UNUSED,
                                 virLockManagerParamPtr params ATTRIBUTE_UNUSED,
                                 unsigned int flags_unused ATTRIBUTE_UNUSED)
@@ -57,7 +57,7 @@ static int virLockManagerNopNew(virLockManagerPtr lock ATTRIBUTE_UNUSED,
 }
 
 static int virLockManagerNopAddResource(virLockManagerPtr lock ATTRIBUTE_UNUSED,
-                                        unsigned int type ATTRIBUTE_UNUSED,
+                                        virLockManagerResourceType type ATTRIBUTE_UNUSED,
                                         const char *name ATTRIBUTE_UNUSED,
                                         size_t nparams ATTRIBUTE_UNUSED,
                                         virLockManagerParamPtr params ATTRIBUTE_UNUSED,
