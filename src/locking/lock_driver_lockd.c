@@ -747,6 +747,90 @@ static int virLockManagerLockDaemonInquire(virLockManagerPtr lock ATTRIBUTE_UNUS
     return 0;
 }
 
+static int
+virLockManagerLockDaemonRemember(virLockManagerPtr lock,
+                                 const char *path,
+                                 const char *model,
+                                 const char *label)
+{
+    virNetClientPtr client = NULL;
+    virNetClientProgramPtr program = NULL;
+    virLockSpaceProtocolRememberSeclabelArgs args;
+    int counter = 0;
+    int rv = -1;
+
+    memset(&args, 0, sizeof(args));
+
+    if (!(client = virLockManagerLockDaemonConnect(lock, &program, &counter)))
+        goto cleanup;
+
+    args.path = (char *)path;
+    args.model = (char *)model;
+    args.label = (char *)label;
+
+    if (virNetClientProgramCall(program,
+                                client,
+                                counter++,
+                                VIR_LOCK_SPACE_PROTOCOL_PROC_REMEMBER_SECLABEL,
+                                0, NULL, NULL, NULL,
+                                (xdrproc_t)xdr_virLockSpaceProtocolRememberSeclabelArgs, &args,
+                                (xdrproc_t)xdr_void, NULL) < 0)
+        goto cleanup;
+    rv = 0;
+
+ cleanup:
+    virNetClientClose(client);
+    virObjectUnref(client);
+    virObjectUnref(program);
+
+    return rv;
+}
+
+static int
+virLockManagerLockDaemonRecall(virLockManagerPtr lock,
+                               const char *path,
+                               const char *model,
+                               char **label)
+{
+    virNetClientPtr client = NULL;
+    virNetClientProgramPtr program = NULL;
+    virLockSpaceProtocolRecallSeclabelArgs args;
+    virLockSpaceProtocolRecallSeclabelRet ret;
+    int counter = 0;
+    int rv = -1;
+
+    memset(&args, 0, sizeof(args));
+    memset(&ret, 0, sizeof(ret));
+
+    if (!(client = virLockManagerLockDaemonConnect(lock, &program, &counter)))
+        goto cleanup;
+
+    args.path = (char *)path;
+    args.model = (char *)model;
+
+    if (virNetClientProgramCall(program,
+                                client,
+                                counter++,
+                                VIR_LOCK_SPACE_PROTOCOL_PROC_RECALL_SECLABEL,
+                                0, NULL, NULL, NULL,
+                                (xdrproc_t)xdr_virLockSpaceProtocolRecallSeclabelArgs, &args,
+                                (xdrproc_t)xdr_virLockSpaceProtocolRecallSeclabelRet, &ret) < 0)
+        goto cleanup;
+
+    if (ret.ret == 0 && label)
+        *label = *ret.label;
+
+    rv = ret.ret;
+
+ cleanup:
+    VIR_FREE(ret.label);
+    virNetClientClose(client);
+    virObjectUnref(client);
+    virObjectUnref(program);
+
+    return rv;
+}
+
 virLockDriver virLockDriverImpl =
 {
     .version = VIR_LOCK_MANAGER_VERSION,
@@ -764,4 +848,7 @@ virLockDriver virLockDriverImpl =
     .drvRelease = virLockManagerLockDaemonRelease,
 
     .drvInquire = virLockManagerLockDaemonInquire,
+
+    .drvRemember = virLockManagerLockDaemonRemember,
+    .drvRecall = virLockManagerLockDaemonRecall,
 };
