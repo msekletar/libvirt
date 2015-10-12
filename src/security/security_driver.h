@@ -122,6 +122,12 @@ typedef int (*virSecurityDomainSetPathLabel) (virSecurityManagerPtr mgr,
                                               virDomainDefPtr def,
                                               const char *path);
 
+typedef int (*virSecurityDomainSetDirLabel) (virSecurityManagerPtr mgr,
+                                             virDomainDefPtr def,
+                                             const char *path);
+typedef int (*virSecurityDomainRestoreDirLabel) (virSecurityManagerPtr mgr,
+                                                 virDomainDefPtr def,
+                                                 const char *path);
 
 struct _virSecurityDriver {
     size_t privateDataLen;
@@ -173,6 +179,8 @@ struct _virSecurityDriver {
     virSecurityDriverGetBaseLabel getBaseLabel;
 
     virSecurityDomainSetPathLabel domainSetPathLabel;
+    virSecurityDomainSetDirLabel domainSetDirLabel;
+    virSecurityDomainRestoreDirLabel domainRestoreDirLabel;
 };
 
 virSecurityDriverPtr virSecurityDriverLookup(const char *name,

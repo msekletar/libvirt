@@ -1138,6 +1138,8 @@ virSecurityDriverLookup;
 virSecurityManagerCheckAllLabel;
 virSecurityManagerClearSocketLabel;
 virSecurityManagerDomainSetPathLabel;
+virSecurityManagerDomainRestoreDirLabel;
+virSecurityManagerDomainSetDirLabel;
 virSecurityManagerGenLabel;
 virSecurityManagerGetBaseLabel;
 virSecurityManagerGetDOI;

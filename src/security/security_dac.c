@@ -1636,6 +1636,23 @@ virSecurityDACDomainSetPathLabel(virSecurityManagerPtr mgr,
     return virSecurityDACSetOwnership(priv, NULL, path, user, group);
 }
 
+static int
+virSecurityDACDomainRestoreDirLabel(virSecurityManagerPtr mgr,
+                                    virDomainDefPtr def,
+                                    const char *path)
+{
+    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
+    virSecurityLabelDefPtr seclabel;
+
+    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
+
+    if (!seclabel && !seclabel->relabel)
+        return 0;
+
+    return virSecurityDACRestoreSecurityFileLabel(priv, path);
+}
+
+
 virSecurityDriver virSecurityDriverDAC = {
     .privateDataLen                     = sizeof(virSecurityDACData),
     .name                               = SECURITY_DAC_NAME,
@@ -1685,4 +1702,6 @@ virSecurityDriver virSecurityDriverDAC = {
     .getBaseLabel                       = virSecurityDACGetBaseLabel,
 
     .domainSetPathLabel                 = virSecurityDACDomainSetPathLabel,
+    .domainSetDirLabel                  = virSecurityDACDomainSetDirLabel,
+    .domainRestoreDirLabel              = virSecurityDACDomainRestoreDirLabel,
 };

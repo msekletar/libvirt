@@ -1003,3 +1003,19 @@ virSecurityManagerDomainSetPathLabel(virSecurityManagerPtr mgr,
 
     return 0;
 }
+
+int
+virSecurityManagerDomainRestoreDirLabel(virSecurityManagerPtr mgr,
+                                        virDomainDefPtr vm,
+                                        const char *path)
+{
+    if (mgr->drv->domainRestoreDirLabel) {
+        int ret;
+        virObjectLock(mgr);
+        ret = mgr->drv->domainRestoreDirLabel(mgr, vm, path);
+        virObjectUnlock(mgr);
+        return ret;
+    }
+
+    return 0;
+}
