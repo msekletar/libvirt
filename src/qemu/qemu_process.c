@@ -5999,6 +5999,10 @@ void qemuProcessStop(virQEMUDriverPtr driver,
     /* Remove the master key */
     qemuDomainMasterKeyRemove(priv);
 
+    virSecurityManagerDomainRestoreDirLabel(driver->securityManager,
+                                            vm->def, priv->libDir);
+    virSecurityManagerDomainRestoreDirLabel(driver->securityManager,
+                                            vm->def, priv->channelTargetDir);
     virFileDeleteTree(priv->libDir);
     virFileDeleteTree(priv->channelTargetDir);
 
