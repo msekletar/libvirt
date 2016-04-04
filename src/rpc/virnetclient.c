@@ -1147,6 +1147,7 @@ virNetClientCallDispatch(virNetClientPtr client)
         return virNetClientCallDispatchMessage(client);
 
     case VIR_NET_STREAM: /* Stream protocol */
+    case VIR_NET_STREAM_SKIP: /* Stream seek protocol */
         return virNetClientCallDispatchStream(client);
 
     default:
