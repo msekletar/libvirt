@@ -1549,7 +1549,7 @@ virStorageVolCreateXMLFrom(virStoragePoolPtr pool,
  * @stream: stream to use as output
  * @offset: position in @vol to start reading from
  * @length: limit on amount of data to download
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virStorageVolDownloadFlags
  *
  * Download the content of the volume as a stream. If @length
  * is zero, then the remaining contents of the volume after
@@ -1613,7 +1613,7 @@ virStorageVolDownload(virStorageVolPtr vol,
  * @stream: stream to use as input
  * @offset: position to start writing to
  * @length: limit on amount of data to upload
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virStorageVolUploadFlags
  *
  * Upload new content to the volume from a stream. This call
  * will fail if @offset + @length exceeds the size of the
