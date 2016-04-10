@@ -734,10 +734,11 @@ LIBVIRT_1.3.3 {
 
 LIBVIRT_2.0.0 {
     global:
-        virConnectStoragePoolEventRegisterAny;
         virConnectStoragePoolEventDeregisterAny;
         virDomainGetGuestVcpus;
         virDomainSetGuestVcpus;
+        virConnectStoragePoolEventRegisterAny;
+        virStreamSkip;
 } LIBVIRT_1.3.3;
 
 LIBVIRT_2.2.0 {

@@ -286,6 +286,46 @@ virStreamRecv(virStreamPtr stream,
 
 
 /**
+ * virStreamSkip:
+ * @stream: pointer to the stream object
+ * @length: number of bytes to skip
+ *
+ * Skip @length bytes in the stream. This is useful when there's
+ * no actual data in the stream, just a hole. If that's the case,
+ * this API can be used to skip the hole properly instead of
+ * transmitting zeroes to the other side.
+ *
+ * Returns 0 on success,
+ *        -1 error
+ */
+int
+virStreamSkip(virStreamPtr stream,
+              unsigned long long length)
+{
+    VIR_DEBUG("stream=%p, length=%llu", stream, length);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+
+    if (stream->driver &&
+        stream->driver->streamSkip) {
+        int ret;
+        ret = (stream->driver->streamSkip)(stream, length);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(stream->conn);
+    return -1;
+}
+
+
+/**
  * virStreamSendAll:
  * @stream: pointer to the stream object
  * @handler: source callback for reading data from application

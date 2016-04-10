@@ -45,6 +45,9 @@ int virStreamRecv(virStreamPtr st,
                   char *data,
                   size_t nbytes);
 
+int virStreamSkip(virStreamPtr st,
+                  unsigned long long length);
+
 
 /**
  * virStreamSourceFunc:
