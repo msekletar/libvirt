@@ -50,6 +50,9 @@ int virStreamRecvFlags(virStreamPtr st,
                        size_t nbytes,
                        unsigned int flags);
 
+int virStreamSkip(virStreamPtr st,
+                  unsigned long long length);
+
 
 /**
  * virStreamSourceFunc:
