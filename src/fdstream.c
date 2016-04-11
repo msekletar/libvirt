@@ -482,6 +482,106 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 }
 
 
+static int
+virFDStreamSkip(virStreamPtr st,
+                unsigned long long offset,
+                void *opaque ATTRIBUTE_UNUSED)
+{
+    struct virFDStreamData *fdst = st->privateData;
+    off_t off;
+
+    virMutexLock(&fdst->lock);
+    off = lseek(fdst->fd, offset, SEEK_CUR);
+    if (off == (off_t) -1) {
+        virMutexUnlock(&fdst->lock);
+        return -1;
+    }
+    if (fdst->length)
+        fdst->offset += offset;
+    virMutexUnlock(&fdst->lock);
+    return 0;
+}
+
+
+static int
+virFDStreamInData(virStreamPtr st,
+                  int *inData,
+                  unsigned long long *offset,
+                  void *opaque ATTRIBUTE_UNUSED)
+{
+    struct virFDStreamData *fdst = st->privateData;
+    int fd;
+    off_t cur, data, hole;
+    int ret = -1;
+
+    virMutexLock(&fdst->lock);
+
+    fd = fdst->fd;
+
+    /* Get current position */
+    cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t) -1) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to get current position in stream"));
+        goto cleanup;
+    }
+
+    /* Now try to get data and hole offsets */
+    data = lseek(fd, cur, SEEK_DATA);
+
+    /* There are four options:
+     * 1) data == cur;  @cur is in data
+     * 2) data > cur; @cur is in a hole, next data at @data
+     * 3) data < 0, errno = ENXIO; either @cur is in trailing hole, or @cur is beyond EOF.
+     * 4) data < 0, errno != ENXIO; we learned nothing
+     */
+
+    if (data == (off_t) -1) {
+        /* cases 3 and 4 */
+        if (errno != ENXIO) {
+            virReportSystemError(errno, "%s",
+                                 _("Unable to seek to data"));
+            goto cleanup;
+        }
+        *inData = 0;
+        *offset = 0;
+    } else if (data > cur) {
+        /* case 2 */
+        *inData = 0;
+        *offset = data - cur;
+    } else {
+        /* case 1 */
+        *inData = 1;
+
+        /* We don't know where does the next hole start. Let's
+         * find out. Here we get the same 4 possibilities as
+         * described above.*/
+        hole = lseek(fd, data, SEEK_HOLE);
+        if (hole == (off_t) -1 || hole == data) {
+            /* cases 1, 3 and 4 */
+            /* Wait a second. The reason why we are here is
+             * because we are in data. But at the same time we
+             * are in a trailing hole? Wut!? Do the best what we
+             * can do here. */
+            virReportSystemError(errno, "%s",
+                                 _("unable to seek to hole"));
+            goto cleanup;
+        } else {
+            /* case 2 */
+            *offset = (hole - data);
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    /* At any rate, reposition back to where we started. */
+    if (cur != (off_t) -1)
+        ignore_value(lseek(fd, cur, SEEK_SET));
+    virMutexUnlock(&fdst->lock);
+    return ret;
+}
+
+
 static virStreamDriver virFDStreamDrv = {
     .streamSend = virFDStreamWrite,
     .streamRecv = virFDStreamRead,
@@ -525,6 +625,8 @@ static int virFDStreamOpenInternal(virStreamPtr st,
 
     st->driver = &virFDStreamDrv;
     st->privateData = fdst;
+    st->skipCb = virFDStreamSkip;
+    st->inDataCb = virFDStreamInData;
 
     return 0;
 }
