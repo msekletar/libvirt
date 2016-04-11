@@ -54,6 +54,7 @@ virNetClientStreamQueuePacket;
 virNetClientStreamRaiseError;
 virNetClientStreamRecvPacket;
 virNetClientStreamSendPacket;
+virNetClientStreamSendSkip;
 virNetClientStreamSetError;
 
 

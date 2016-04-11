@@ -61,6 +61,10 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
                                  size_t nbytes,
                                  bool nonblock);
 
+int virNetClientStreamSendSkip(virNetClientStreamPtr st,
+                               virNetClientPtr client,
+                               unsigned long long length);
+
 int virNetClientStreamEventAddCallback(virNetClientStreamPtr st,
                                        int events,
                                        virNetClientStreamEventCallback cb,
