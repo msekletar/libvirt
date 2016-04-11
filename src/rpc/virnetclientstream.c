@@ -431,6 +431,58 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
 }
 
 
+int
+virNetClientStreamSendSkip(virNetClientStreamPtr st,
+                           virNetClientPtr client,
+                           unsigned long long offset)
+{
+    virNetMessagePtr msg = NULL;
+    virNetStreamSkip data;
+    int ret = -1;
+
+    VIR_DEBUG("st=%p offset=%llu", st, offset);
+
+    if (!st->seekable) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("Skipping is not supported with this stream"));
+        return -1;
+    }
+
+    memset(&data, 0, sizeof(data));
+    data.offset = offset;
+
+    if (!(msg = virNetMessageNew(false)))
+        return -1;
+
+    virObjectLock(st);
+
+    msg->header.prog = virNetClientProgramGetProgram(st->prog);
+    msg->header.vers = virNetClientProgramGetVersion(st->prog);
+    msg->header.status = VIR_NET_CONTINUE;
+    msg->header.type = VIR_NET_STREAM_SKIP;
+    msg->header.serial = st->serial;
+    msg->header.proc = st->proc;
+
+    virObjectUnlock(st);
+
+    if (virNetMessageEncodeHeader(msg) < 0)
+        goto cleanup;
+
+    if (virNetMessageEncodePayload(msg,
+                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                   &data) < 0)
+        goto cleanup;
+
+    if (virNetClientSendNoReply(client, msg) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    virNetMessageFree(msg);
+    return ret;
+}
+
+
 int virNetClientStreamEventAddCallback(virNetClientStreamPtr st,
                                        int events,
                                        virNetClientStreamEventCallback cb,
