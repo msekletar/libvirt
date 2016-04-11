@@ -29,6 +29,7 @@
 #include "virlog.h"
 #include "virnetserverclient.h"
 #include "virerror.h"
+#include "libvirt_internal.h"
 
 #define VIR_FROM_THIS VIR_FROM_STREAMS
 
@@ -653,6 +654,39 @@ daemonStreamHandleAbort(virNetServerClientPtr client,
 }
 
 
+static int
+daemonStreamHandleSkip(virNetServerClientPtr client,
+                       daemonClientStream *stream,
+                       virNetMessagePtr msg)
+{
+    int ret;
+    virNetStreamSkip data;
+
+    VIR_DEBUG("client=%p, stream=%p, proc=%d, serial=%u",
+              client, stream, msg->header.proc, msg->header.serial);
+
+    /* Let's check if client plays nicely and advertised usage of
+     * sparse stream upfront. */
+    if (!stream->seekable) {
+        virReportError(VIR_ERR_RPC, "%s",
+                       _("Unexpected stream seek"));
+        return -1;
+    }
+
+    if (virNetMessageDecodePayload(msg,
+                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                   &data) < 0)
+        return -1;
+
+    /* We could have called virStreamSkip() here as well because
+     * we have access to underlying virStream structure so we can
+     * register handler there. But for clean code lets call
+     * virStreamSkipCallback(). */
+    ret = virStreamSkipCallback(stream->st, data.offset);
+
+    return ret;
+}
+
 
 /*
  * Called when the stream is signalled has being able to accept
@@ -671,19 +705,31 @@ daemonStreamHandleWrite(virNetServerClientPtr client,
         virNetMessagePtr msg = stream->rx;
         int ret;
 
-        switch (msg->header.status) {
-        case VIR_NET_OK:
-            ret = daemonStreamHandleFinish(client, stream, msg);
-            break;
+        if (msg->header.type == VIR_NET_STREAM_SKIP) {
+            /* Handle special case when client sent us skip.
+             * Otherwise just carry on with processing stream
+             * data. */
+            ret = daemonStreamHandleSkip(client, stream, msg);
+        } else if (msg->header.type == VIR_NET_STREAM) {
+            switch (msg->header.status) {
+            case VIR_NET_OK:
+                ret = daemonStreamHandleFinish(client, stream, msg);
+                break;
 
-        case VIR_NET_CONTINUE:
-            ret = daemonStreamHandleWriteData(client, stream, msg);
-            break;
+            case VIR_NET_CONTINUE:
+                ret = daemonStreamHandleWriteData(client, stream, msg);
+                break;
 
-        case VIR_NET_ERROR:
-        default:
-            ret = daemonStreamHandleAbort(client, stream, msg);
-            break;
+            case VIR_NET_ERROR:
+            default:
+                ret = daemonStreamHandleAbort(client, stream, msg);
+                break;
+            }
+        } else {
+            virReportError(VIR_ERR_RPC,
+                           _("Unexpected message type: %d"),
+                           msg->header.type);
+            ret = -1;
         }
 
         if (ret > 0)
