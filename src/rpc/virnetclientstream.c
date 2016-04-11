@@ -28,6 +28,7 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virthread.h"
+#include "libvirt_internal.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
 
@@ -357,6 +358,73 @@ int virNetClientStreamSendPacket(virNetClientStreamPtr st,
     virNetMessageFree(msg);
     return -1;
 }
+
+
+static int ATTRIBUTE_UNUSED
+virNetClientStreamHandleSkip(virNetClientPtr client,
+                             virNetClientStreamPtr st)
+{
+    virNetMessagePtr msg;
+    virNetStreamSkip data;
+    int rv, ret = -1;
+
+    VIR_DEBUG("client=%p st=%p", client, st);
+
+    msg = st->rx;
+    memset(&data, 0, sizeof(data));
+
+    /* We should not be called unless there's VIR_NET_STREAM_SKIP
+     * message at the head of the list. But doesn't hurt to check */
+    if (!msg) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("No message in the queue"));
+        goto cleanup;
+    }
+
+    if (msg->header.type != VIR_NET_STREAM_SKIP) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid message prog=%d type=%d serial=%u proc=%d"),
+                       msg->header.prog,
+                       msg->header.type,
+                       msg->header.serial,
+                       msg->header.proc);
+        goto cleanup;
+    }
+
+    /* Server should not send us VIR_NET_STREAM_SKIP unless we
+     * have requested so. But does not hurt to check ... */
+    if (!st->seekable) {
+        virReportError(VIR_ERR_RPC, "%s",
+                       _("Unexpected stream seek"));
+        goto cleanup;
+    }
+
+    if (virNetMessageDecodePayload(msg,
+                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                   &data) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Malformed stream seek packet"));
+        goto cleanup;
+    }
+
+    virNetMessageQueueServe(&st->rx);
+    virNetMessageFree(msg);
+
+    virObjectUnlock(st);
+    rv = virStreamSkipCallback(st->stream, data.offset);
+    virObjectLock(st);
+
+    if (rv < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    if (ret < 0) {
+        /* Abort stream? */
+    }
+    return ret;
+}
+
 
 int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
                                  virNetClientPtr client,
