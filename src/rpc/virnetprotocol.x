@@ -236,3 +236,7 @@ struct virNetMessageError {
     int int2;
     virNetMessageNetwork net; /* unused */
 };
+
+struct virNetStreamSkip {
+    unsigned hyper offset;
+};
