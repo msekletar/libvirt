@@ -504,11 +504,59 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 }
 
 
+static int
+virFDStreamSkip(virStreamPtr st,
+                unsigned long long length)
+{
+    virFDStreamDataPtr fdst = st->privateData;
+    off_t off;
+    int ret = -1;
+
+    virObjectLock(fdst);
+    if (fdst->length) {
+        if (fdst->offset + length > fdst->length) {
+            virReportSystemError(ENOSPC, "%s",
+                                 _("cannot write to stream"));
+            goto cleanup;
+        }
+        fdst->offset += length;
+    }
+
+    off = lseek(fdst->fd, length, SEEK_CUR);
+    if (off == (off_t) -1) {
+        virReportSystemError(errno, "%s",
+                             _("unable to seek"));
+        goto cleanup;
+    }
+    ret = 0;
+ cleanup:
+    virObjectUnlock(fdst);
+    return ret;
+}
+
+
+static int
+virFDStreamInData(virStreamPtr st,
+                  int *inData,
+                  unsigned long long *length)
+{
+    virFDStreamDataPtr fdst = st->privateData;
+    int ret = -1;
+
+    virObjectLock(fdst);
+    ret = virFileInData(fdst->fd, inData, length);
+    virObjectUnlock(fdst);
+    return ret;
+}
+
+
 static virStreamDriver virFDStreamDrv = {
     .streamSend = virFDStreamWrite,
     .streamRecv = virFDStreamRead,
     .streamFinish = virFDStreamClose,
     .streamAbort = virFDStreamAbort,
+    .streamSkip = virFDStreamSkip,
+    .streamInData = virFDStreamInData,
     .streamEventAddCallback = virFDStreamAddCallback,
     .streamEventUpdateCallback = virFDStreamUpdateCallback,
     .streamEventRemoveCallback = virFDStreamRemoveCallback
