@@ -738,6 +738,7 @@ LIBVIRT_2.0.0 {
         virDomainGetGuestVcpus;
         virDomainSetGuestVcpus;
         virConnectStoragePoolEventRegisterAny;
+        virStreamRegisterInData;
         virStreamRegisterSkip;
         virStreamSkip;
 } LIBVIRT_1.3.3;

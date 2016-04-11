@@ -1066,6 +1066,7 @@ virStateCleanup;
 virStateInitialize;
 virStateReload;
 virStateStop;
+virStreamInData;
 virStreamSkipCallback;
 
 

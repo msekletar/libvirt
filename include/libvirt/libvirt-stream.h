@@ -69,6 +69,29 @@ int virStreamRegisterSkip(virStreamPtr stream,
 int virStreamSkip(virStreamPtr st,
                   unsigned long long length);
 
+/**
+ * virStreamInDataFunc:
+ * @stream: stream
+ * @data: are we in data or hole
+ * @offset: offset to next section
+ * @opaque: optional application provided data
+ *
+ * This callback is called whenever virStreamInData needs to
+ * check whether @stream is in data section or in hole. Check
+ * description for virStreamInData for more detailed description.
+ *
+ * Returns 0 on success (with @data and @offset updated)
+ *        -1 otherwise (with @data and @offset untouched)
+ */
+typedef int (*virStreamInDataFunc)(virStreamPtr stream,
+                                   int *data,
+                                   unsigned long long *offset,
+                                   void *opaque);
+
+int virStreamRegisterInData(virStreamPtr stream,
+                            virStreamInDataFunc inDataCb,
+                            void *opaque);
+
 
 /**
  * virStreamSourceFunc:

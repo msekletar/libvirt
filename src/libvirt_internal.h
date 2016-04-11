@@ -298,4 +298,7 @@ int
 virStreamSkipCallback(virStreamPtr stream,
                       unsigned long long length);
 
+int virStreamInData(virStreamPtr stream,
+                    int *data,
+                    unsigned long long *offset);
 #endif

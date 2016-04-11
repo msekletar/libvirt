@@ -396,6 +396,94 @@ virStreamSkip(virStreamPtr stream,
 
 
 /**
+ * virStreamRegisterInData:
+ * @stream: stream
+ * @inDataCb: callback function
+ * @opaque: optional application provided data
+ *
+ * This function registers callback that will be called whenever
+ * virStreamInData needs to check whether @stream is currently in
+ * data or in a hole. This is to be used purely with sparse
+ * streams.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
+int
+virStreamRegisterInData(virStreamPtr stream,
+                        virStreamInDataFunc inDataCb,
+                        void *opaque)
+{
+    VIR_DEBUG("stream=%p, inDataCb=%p opaque=%p", stream, inDataCb, opaque);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+    virCheckNonNullArgReturn(inDataCb, -1);
+
+    if (stream->inDataCb) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("An inData callback is already registered"));
+        return -1;
+    }
+
+    stream->inDataCb = inDataCb;
+    stream->inDataCbOpaque = opaque;
+    return 0;
+}
+
+
+/**
+ * virStreamInData:
+ * @stream: stream
+ * @data: are we in data or hole
+ * @offset: offset to next section
+ *
+ * This function checks the underlying stream (typically a file)
+ * to learn whether the current stream position lies within a
+ * data section or a hold.  Upon return @data is set to a nonzero
+ * value if former is the case, or to zero if @stream is in a
+ * hole. Moreover, @offset is updated to tell caller how many
+ * bytes can be read from @stream until current section changes
+ * (from data to a hole or vice versa).
+ *
+ * As a special case, there's an implicit hole at EOF. In this
+ * situation this function should set @data = false, @offset = 0
+ * and return 0.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise
+ */
+int
+virStreamInData(virStreamPtr stream,
+                int *data,
+                unsigned long long *offset)
+{
+    VIR_DEBUG("stream=%p, data=%p, offset=%p", stream, data, offset);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+    virCheckNonNullArgReturn(data, -1);
+    virCheckNonNullArgReturn(offset, -1);
+
+    if (stream->inDataCb) {
+        int ret;
+        ret = (stream->inDataCb)(stream, data, offset, stream->inDataCbOpaque);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(stream->conn);
+    return -1;
+}
+
+
+/**
  * virStreamSendAll:
  * @stream: pointer to the stream object
  * @handler: source callback for reading data from application
