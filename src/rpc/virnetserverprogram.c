@@ -548,6 +548,39 @@ int virNetServerProgramSendStreamData(virNetServerProgramPtr prog,
 }
 
 
+int virNetServerProgramSendStreamSkip(virNetServerProgramPtr prog,
+                                      virNetServerClientPtr client,
+                                      virNetMessagePtr msg,
+                                      int procedure,
+                                      unsigned int serial,
+                                      unsigned long long length)
+{
+    virNetStreamSkip data;
+
+    VIR_DEBUG("client=%p msg=%p length=%llu", client, msg, length);
+
+    memset(&data, 0, sizeof(data));
+    data.length = length;
+
+    msg->header.prog = prog->program;
+    msg->header.vers = prog->version;
+    msg->header.proc = procedure;
+    msg->header.type = VIR_NET_STREAM_SKIP;
+    msg->header.serial = serial;
+    msg->header.status = VIR_NET_CONTINUE;
+
+    if (virNetMessageEncodeHeader(msg) < 0)
+        return -1;
+
+    if (virNetMessageEncodePayload(msg,
+                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                   &data) < 0)
+        return -1;
+
+    return virNetServerClientSendMessage(client, msg);
+}
+
+
 void virNetServerProgramDispose(void *obj ATTRIBUTE_UNUSED)
 {
 }
