@@ -104,4 +104,11 @@ int virNetServerProgramSendStreamData(virNetServerProgramPtr prog,
                                       const char *data,
                                       size_t len);
 
+int virNetServerProgramSendStreamSkip(virNetServerProgramPtr prog,
+                                      virNetServerClientPtr client,
+                                      virNetMessagePtr msg,
+                                      int procedure,
+                                      unsigned int serial,
+                                      unsigned long long length);
+
 #endif /* __VIR_NET_SERVER_PROGRAM_H__ */
