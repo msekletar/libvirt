@@ -784,6 +784,8 @@ daemonStreamHandleRead(virNetServerClientPtr client,
     size_t bufferLen = VIR_NET_MESSAGE_LEGACY_PAYLOAD_MAX;
     int ret = -1;
     int rv;
+    int inData = 0;
+    unsigned long long offset;
 
     VIR_DEBUG("client=%p, stream=%p tx=%d closed=%d",
               client, stream, stream->tx, stream->closed);
@@ -807,6 +809,54 @@ daemonStreamHandleRead(virNetServerClientPtr client,
 
     if (!(msg = virNetMessageNew(false)))
         goto cleanup;
+
+    if (stream->seekable) {
+        /* Handle skip. We want to send some data to the client. But we might
+         * be in a hole. Seek to next data. But if we are in data already, just
+         * carry on. */
+
+        rv = virStreamInData(stream->st, &inData, &offset);
+        VIR_DEBUG("rv=%d inData=%d offset=%llu", rv, inData, offset);
+
+        if (rv < 0) {
+            if (virNetServerProgramSendStreamError(remoteProgram,
+                                                   client,
+                                                   msg,
+                                                   &rerr,
+                                                   stream->procedure,
+                                                   stream->serial) < 0)
+                goto cleanup;
+            msg = NULL;
+
+            /* We're done with this call */
+            goto done;
+        } else {
+            if (!inData && offset) {
+                stream->tx = false;
+                msg->cb = daemonStreamMessageFinished;
+                msg->opaque = stream;
+                stream->refs++;
+                if (virNetServerProgramSendStreamSkip(remoteProgram,
+                                                      client,
+                                                      msg,
+                                                      stream->procedure,
+                                                      stream->serial,
+                                                      offset) < 0)
+                    goto cleanup;
+
+                msg = NULL;
+
+                /* We have successfully sent stream skip to the  other side.
+                 * To keep streams in sync seek locally too. */
+                virStreamSkipCallback(stream->st, offset);
+                /* We're done with this call */
+                goto done;
+            }
+        }
+
+        if (offset < bufferLen)
+            bufferLen = offset;
+    }
 
     rv = virStreamRecv(stream->st, buffer, bufferLen);
     if (rv == -2) {
@@ -839,6 +889,7 @@ daemonStreamHandleRead(virNetServerClientPtr client,
         msg = NULL;
     }
 
+ done:
     ret = 0;
  cleanup:
     VIR_FREE(buffer);
