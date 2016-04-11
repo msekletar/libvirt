@@ -42,3 +42,6 @@ struct virNetMessageError {
         int                        int2;
         virNetMessageNetwork       net;
 };
+struct virNetStreamSkip {
+        uint64_t                   length;
+};
