@@ -45,6 +45,27 @@ int virStreamRecv(virStreamPtr st,
                   char *data,
                   size_t nbytes);
 
+/**
+ * virStreamSkipFunc:
+ * @stream: stream
+ * @length: size of hole in bytes
+ * @opaque: optional application provided data
+ *
+ * This callback is called whenever the other side of @stream is
+ * willing to skip a hole in the stream. The @length argument
+ * then contains the size of hole in bytes.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
+typedef int (*virStreamSkipFunc)(virStreamPtr stream,
+                                 unsigned long long length,
+                                 void *opaque);
+
+int virStreamRegisterSkip(virStreamPtr stream,
+                          virStreamSkipFunc skipCb,
+                          void *opaque);
+
 int virStreamSkip(virStreamPtr st,
                   unsigned long long length);
 

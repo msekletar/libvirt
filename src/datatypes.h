@@ -636,6 +636,12 @@ struct _virStream {
 
     virStreamDriverPtr driver;
     void *privateData;
+
+    /* Unfortunately, this can't go into virStreamDriver because
+     * when register function for skipCb is called, @driver
+     * is not populated yet. */
+    virStreamSkipFunc skipCb;
+    void *skipCbOpaque;
 };
 
 /**

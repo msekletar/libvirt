@@ -286,6 +286,76 @@ virStreamRecv(virStreamPtr stream,
 
 
 /**
+ * virStreamRegisterSkip:
+ * @stream: stream
+ * @skipCb: callback function
+ * @opaque: optional application provided data
+ *
+ * This function registers a callback that will be called whenever
+ * the other side of the @stream is willing to skip a hole in the
+ * stream.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
+int
+virStreamRegisterSkip(virStreamPtr stream,
+                      virStreamSkipFunc skipCb,
+                      void *opaque)
+{
+    VIR_DEBUG("stream=%p, skipCb=%p opaque=%p", stream, skipCb, opaque);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+    virCheckNonNullArgReturn(skipCb, -1);
+
+    if (stream->skipCb) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("A skip callback is already registered"));
+        return -1;
+    }
+
+    stream->skipCb = skipCb;
+    stream->skipCbOpaque = opaque;
+    return 0;
+}
+
+
+/**
+ * virStreamSkipCallback:
+ * @stream: stream
+ * @length: stream hole size
+ *
+ * Call previously registered skip callback.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
+int
+virStreamSkipCallback(virStreamPtr stream,
+                      unsigned long long length)
+{
+    VIR_DEBUG("stream=%p, length=%llu", stream, length);
+
+    virCheckStreamReturn(stream, -1);
+
+    if (stream->skipCb) {
+        int ret;
+        ret = (stream->skipCb)(stream, length, stream->skipCbOpaque);
+        if (ret < 0)
+            goto error;
+        return 0;
+    }
+
+    virReportUnsupportedError();
+ error:
+    virDispatchError(stream->conn);
+    return -1;
+}
+
+
+/**
  * virStreamSkip:
  * @stream: pointer to the stream object
  * @length: number of bytes to skip
