@@ -5922,7 +5922,8 @@ remoteDomainMigratePrepareTunnel3(virConnectPtr dconn,
     memset(&args, 0, sizeof(args));
     memset(&ret, 0, sizeof(ret));
 
-    if (!(netst = virNetClientStreamNew(priv->remoteProgram,
+    if (!(netst = virNetClientStreamNew(st,
+                                        priv->remoteProgram,
                                         REMOTE_PROC_DOMAIN_MIGRATE_PREPARE_TUNNEL3,
                                         priv->counter)))
         goto done;
@@ -6846,7 +6847,8 @@ remoteDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(netst = virNetClientStreamNew(priv->remoteProgram,
+    if (!(netst = virNetClientStreamNew(st,
+                                        priv->remoteProgram,
                                         REMOTE_PROC_DOMAIN_MIGRATE_PREPARE_TUNNEL3_PARAMS,
                                         priv->counter)))
         goto cleanup;
