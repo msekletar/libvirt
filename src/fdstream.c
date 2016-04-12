@@ -79,6 +79,11 @@ struct virFDStreamData {
     virMutex lock;
 };
 
+enum {
+    VIR_FDSTREAM_OPEN_FORCE_IOHELPER    = 1 << 0,
+    VIR_FDSTREAM_OPEN_SPARSE            = 1 << 1,
+};
+
 
 static int virFDStreamRemoveCallback(virStreamPtr stream)
 {
@@ -596,7 +601,8 @@ static int virFDStreamOpenInternal(virStreamPtr st,
                                    int fd,
                                    virCommandPtr cmd,
                                    int errfd,
-                                   unsigned long long length)
+                                   unsigned long long length,
+                                   unsigned int flags)
 {
     struct virFDStreamData *fdst;
 
@@ -625,8 +631,10 @@ static int virFDStreamOpenInternal(virStreamPtr st,
 
     st->driver = &virFDStreamDrv;
     st->privateData = fdst;
-    st->skipCb = virFDStreamSkip;
-    st->inDataCb = virFDStreamInData;
+    if (flags & VIR_FDSTREAM_OPEN_SPARSE) {
+        st->skipCb = virFDStreamSkip;
+        st->inDataCb = virFDStreamInData;
+    }
 
     return 0;
 }
@@ -635,7 +643,7 @@ static int virFDStreamOpenInternal(virStreamPtr st,
 int virFDStreamOpen(virStreamPtr st,
                     int fd)
 {
-    return virFDStreamOpenInternal(st, fd, NULL, -1, 0);
+    return virFDStreamOpenInternal(st, fd, NULL, -1, 0, 0);
 }
 
 
@@ -681,7 +689,7 @@ int virFDStreamConnectUNIX(virStreamPtr st,
         goto error;
     }
 
-    if (virFDStreamOpenInternal(st, fd, NULL, -1, 0) < 0)
+    if (virFDStreamOpenInternal(st, fd, NULL, -1, 0, 0) < 0)
         goto error;
     return 0;
 
@@ -707,7 +715,7 @@ virFDStreamOpenFileInternal(virStreamPtr st,
                             unsigned long long length,
                             int oflags,
                             int mode,
-                            bool forceIOHelper)
+                            unsigned int flags)
 {
     int fd = -1;
     int childfd = -1;
@@ -716,8 +724,8 @@ virFDStreamOpenFileInternal(virStreamPtr st,
     int errfd = -1;
     char *iohelper_path = NULL;
 
-    VIR_DEBUG("st=%p path=%s oflags=%x offset=%llu length=%llu mode=%o",
-              st, path, oflags, offset, length, mode);
+    VIR_DEBUG("st=%p path=%s oflags=%x offset=%llu length=%llu mode=%o flags=%x",
+              st, path, oflags, offset, length, mode, flags);
 
     oflags |= O_NOCTTY | O_BINARY;
 
@@ -751,10 +759,15 @@ virFDStreamOpenFileInternal(virStreamPtr st,
      * non-blocking I/O on block devs/regular files. To
      * support those we need to fork a helper process to do
      * the I/O so we just have a fifo. Or use AIO :-(
+     * Moreover, when opening a file for a sparse stream, make
+     * sure we end up with something seekable which a FIFO is
+     * not.
      */
-    if ((st->flags & VIR_STREAM_NONBLOCK) &&
-        ((!S_ISCHR(sb.st_mode) &&
-          !S_ISFIFO(sb.st_mode)) || forceIOHelper)) {
+    if (!(flags & VIR_FDSTREAM_OPEN_SPARSE) &&
+        ((st->flags & VIR_STREAM_NONBLOCK) &&
+         ((!S_ISCHR(sb.st_mode) &&
+           !S_ISFIFO(sb.st_mode)) ||
+          flags & VIR_FDSTREAM_OPEN_FORCE_IOHELPER))) {
         int fds[2] = { -1, -1 };
 
         if ((oflags & O_ACCMODE) == O_RDWR) {
@@ -803,7 +816,7 @@ virFDStreamOpenFileInternal(virStreamPtr st,
         VIR_FORCE_CLOSE(childfd);
     }
 
-    if (virFDStreamOpenInternal(st, fd, cmd, errfd, length) < 0)
+    if (virFDStreamOpenInternal(st, fd, cmd, errfd, length, flags) < 0)
         goto error;
 
     return 0;
@@ -833,7 +846,7 @@ int virFDStreamOpenFile(virStreamPtr st,
     }
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags, 0, false);
+                                       oflags, 0, 0);
 }
 
 int virFDStreamCreateFile(virStreamPtr st,
@@ -845,8 +858,7 @@ int virFDStreamCreateFile(virStreamPtr st,
 {
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags | O_CREAT, mode,
-                                       false);
+                                       oflags | O_CREAT, mode, 0);
 }
 
 #ifdef HAVE_CFMAKERAW
@@ -861,8 +873,7 @@ int virFDStreamOpenPTY(virStreamPtr st,
 
     if (virFDStreamOpenFileInternal(st, path,
                                     offset, length,
-                                    oflags | O_CREAT, 0,
-                                    false) < 0)
+                                    oflags | O_CREAT, 0, 0) < 0)
         return -1;
 
     fdst = st->privateData;
@@ -898,8 +909,7 @@ int virFDStreamOpenPTY(virStreamPtr st,
 {
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags | O_CREAT, 0,
-                                       false);
+                                       oflags | O_CREAT, 0, 0);
 }
 #endif /* !HAVE_CFMAKERAW */
 
@@ -907,11 +917,17 @@ int virFDStreamOpenBlockDevice(virStreamPtr st,
                                const char *path,
                                unsigned long long offset,
                                unsigned long long length,
-                               int oflags)
+                               int oflags,
+                               bool sparse)
 {
+    unsigned int flags = VIR_FDSTREAM_OPEN_FORCE_IOHELPER;
+
+    if (sparse)
+        flags |= VIR_FDSTREAM_OPEN_SPARSE;
+
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags, 0, true);
+                                       oflags, 0, flags);
 }
 
 int virFDStreamSetInternalCloseCb(virStreamPtr st,
