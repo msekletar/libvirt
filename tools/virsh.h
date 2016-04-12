@@ -150,4 +150,7 @@ int virshDomainState(vshControl *ctl, virDomainPtr dom, int *reason);
 int virshStreamSink(virStreamPtr st, const char *bytes, size_t nbytes,
                     void *opaque);
 
+int virshStreamSkip(virStreamPtr st,
+                    unsigned long long offset, void *opaque);
+
 #endif /* VIRSH_H */
