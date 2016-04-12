@@ -265,6 +265,14 @@ int virshStreamSink(virStreamPtr st ATTRIBUTE_UNUSED,
     return safewrite(*fd, bytes, nbytes);
 }
 
+int virshStreamSkip(virStreamPtr st ATTRIBUTE_UNUSED,
+                    unsigned long long offset, void *opaque)
+{
+    int *fd = opaque;
+
+    return lseek(*fd, offset, SEEK_CUR) == (off_t) -1 ? -1 : 0;
+}
+
 /* ---------------
  * Command Connect
  * ---------------
