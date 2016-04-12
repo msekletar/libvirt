@@ -297,6 +297,8 @@ int virNetClientStreamQueuePacket(virNetClientStreamPtr st,
 
     virObjectLock(st);
 
+    /* Don't distinguish VIR_NET_STREAM and VIR_NET_STREAM_SKIP
+     * here just yet. We want in order processing! */
     virNetMessageQueuePush(&st->rx, tmp_msg);
 
     virNetClientStreamEventTimerUpdate(st);
@@ -360,7 +362,7 @@ int virNetClientStreamSendPacket(virNetClientStreamPtr st,
 }
 
 
-static int ATTRIBUTE_UNUSED
+static int
 virNetClientStreamHandleSkip(virNetClientPtr client,
                              virNetClientStreamPtr st)
 {
@@ -438,6 +440,8 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
     VIR_DEBUG("st=%p client=%p data=%p nbytes=%zu nonblock=%d",
               st, client, data, nbytes, nonblock);
     virObjectLock(st);
+
+ reread:
     if (!st->rx && !st->incomingEOF) {
         virNetMessagePtr msg;
         int ret;
@@ -469,8 +473,37 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
     }
 
     VIR_DEBUG("After IO rx=%p", st->rx);
+
+    while (st->rx &&
+           st->rx->header.type == VIR_NET_STREAM_SKIP) {
+        /* Handle skip sent to us by server. Moreover, if client
+         * lacks event loop, this is only chance for us to
+         * process the skip. Therefore we should:
+         * a) process it,
+         * b) carry on with regular read from stream (if possible
+         *    of course).
+         */
+
+        if (virNetClientStreamHandleSkip(client, st) < 0)
+            goto cleanup;
+    }
+
+    if (!st->rx && !st->incomingEOF) {
+        if (nonblock) {
+            VIR_DEBUG("Non-blocking mode and no data available");
+            rv = -2;
+            goto cleanup;
+        }
+
+        /* We have consumed all packets from incoming queue but those
+         * were only skip packets, no data. Read the stream again. */
+        goto reread;
+    }
+
     want = nbytes;
-    while (want && st->rx) {
+    while (want &&
+           st->rx &&
+           st->rx->header.type == VIR_NET_STREAM) {
         virNetMessagePtr msg = st->rx;
         size_t len = want;
 
