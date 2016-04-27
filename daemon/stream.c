@@ -54,6 +54,7 @@ struct daemonClientStream {
     bool tx;
 
     bool seekable;
+    size_t dataLen; /* How much data is there remaining until we see a hole */
 
     daemonClientStreamPtr next;
 };
@@ -810,7 +811,7 @@ daemonStreamHandleRead(virNetServerClientPtr client,
     if (!(msg = virNetMessageNew(false)))
         goto cleanup;
 
-    if (stream->seekable) {
+    if (stream->seekable && !stream->dataLen) {
         /* Handle skip. We want to send some data to the client. But we might
          * be in a hole. Seek to next data. But if we are in data already, just
          * carry on. */
@@ -854,9 +855,12 @@ daemonStreamHandleRead(virNetServerClientPtr client,
             }
         }
 
-        if (offset < bufferLen)
-            bufferLen = offset;
+        stream->dataLen = offset;
     }
+
+    if (stream->seekable &&
+        bufferLen > stream->dataLen)
+        bufferLen = stream->dataLen;
 
     rv = virStreamRecv(stream->st, buffer, bufferLen);
     if (rv == -2) {
@@ -872,6 +876,8 @@ daemonStreamHandleRead(virNetServerClientPtr client,
             goto cleanup;
         msg = NULL;
     } else {
+        stream->dataLen -= rv;
+
         stream->tx = false;
         if (rv == 0)
             stream->recvEOF = true;
