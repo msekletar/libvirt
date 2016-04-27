@@ -659,6 +659,10 @@ static const vshCmdOptDef opts_vol_upload[] = {
      .type = VSH_OT_INT,
      .help = N_("amount of data to upload")
     },
+    {.name = "sparse",
+     .type = VSH_OT_BOOL,
+     .help = N_("preserve sparseness of volume")
+    },
     {.name = NULL}
 };
 
@@ -682,6 +686,8 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
     const char *name = NULL;
     unsigned long long offset = 0, length = 0;
     virshControlPtr priv = ctl->privData;
+    unsigned int flags = 0;
+    struct _virshStreamInData cbData;
 
     if (vshCommandOptULongLong(ctl, cmd, "offset", &offset) < 0)
         return false;
@@ -705,7 +711,24 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (virStorageVolUpload(vol, st, offset, length, 0) < 0) {
+    if (vshCommandOptBool(cmd, "sparse")) {
+        flags |= VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM;
+
+        cbData.ctl = ctl;
+        cbData.fd = fd;
+
+        if (virStreamRegisterInData(st, virshStreamInData, &cbData) < 0) {
+            vshError(ctl, _("cannot register stream inData callback"));
+            goto cleanup;
+        }
+
+        if (virStreamRegisterSkip(st, virshStreamSkip, &fd) < 0) {
+            vshError(ctl, _("cannot register stream skip handling function"));
+            goto cleanup;
+        }
+    }
+
+    if (virStorageVolUpload(vol, st, offset, length, flags) < 0) {
         vshError(ctl, _("cannot upload to volume %s"), name);
         goto cleanup;
     }

@@ -153,4 +153,13 @@ int virshStreamSink(virStreamPtr st, const char *bytes, size_t nbytes,
 int virshStreamSkip(virStreamPtr st,
                     unsigned long long offset, void *opaque);
 
+struct _virshStreamInData {
+    vshControl *ctl;
+    int fd;
+};
+
+int virshStreamInData(virStreamPtr st,
+                      int *data,
+                      unsigned long long *offset,
+                      void *opaque);
 #endif /* VIRSH_H */
