@@ -528,9 +528,10 @@ virStreamSendAll(virStreamPtr stream,
                  virStreamSourceFunc handler,
                  void *opaque)
 {
-    char *bytes = NULL;
-    size_t want = VIR_NET_MESSAGE_LEGACY_PAYLOAD_MAX;
+    char *buf = NULL;
+    size_t bufSize = VIR_NET_MESSAGE_LEGACY_PAYLOAD_MAX;
     int ret = -1;
+    unsigned long long dataLen = 0;
     VIR_DEBUG("stream=%p, handler=%p, opaque=%p", stream, handler, opaque);
 
     virResetLastError();
@@ -544,12 +545,35 @@ virStreamSendAll(virStreamPtr stream,
         goto cleanup;
     }
 
-    if (VIR_ALLOC_N(bytes, want) < 0)
+    if (VIR_ALLOC_N(buf, bufSize) < 0)
         goto cleanup;
 
     for (;;) {
+        size_t want = bufSize;
         int got, offset = 0;
-        got = (handler)(stream, bytes, want, opaque);
+
+        if (stream->inDataCb && !dataLen) {
+            int inData = 0;
+            int rv = virStreamInData(stream, &inData, &dataLen);
+
+            if (rv < 0) {
+                virStreamAbort(stream);
+                goto cleanup;
+            }
+
+            if (!inData && dataLen) {
+                if (virStreamSkip(stream, dataLen) < 0 ||
+                    virStreamSkipCallback(stream, dataLen) < 0) {
+                    virStreamAbort(stream);
+                    goto cleanup;
+                }
+            }
+        }
+
+        if (dataLen && want > dataLen)
+            want = dataLen;
+
+        got = (handler)(stream, buf, want, opaque);
         if (got < 0) {
             virStreamAbort(stream);
             goto cleanup;
@@ -558,16 +582,17 @@ virStreamSendAll(virStreamPtr stream,
             break;
         while (offset < got) {
             int done;
-            done = virStreamSend(stream, bytes + offset, got - offset);
+            done = virStreamSend(stream, buf + offset, got - offset);
             if (done < 0)
                 goto cleanup;
             offset += done;
+            dataLen -= done;
         }
     }
     ret = 0;
 
  cleanup:
-    VIR_FREE(bytes);
+    VIR_FREE(buf);
 
     if (ret != 0)
         virDispatchError(stream->conn);
