@@ -265,6 +265,17 @@ int virshStreamSink(virStreamPtr st ATTRIBUTE_UNUSED,
     return safewrite(*fd, bytes, nbytes);
 }
 
+int
+virshStreamSource(virStreamPtr st ATTRIBUTE_UNUSED,
+                  char *bytes, size_t nbytes, void *opaque)
+{
+    virshStreamCallbackDataPtr cbData = opaque;
+    int fd = cbData->fd;
+
+    return saferead(fd, bytes, nbytes);
+}
+
+
 int virshStreamSkip(virStreamPtr st ATTRIBUTE_UNUSED,
                     unsigned long long offset, void *opaque)
 {
@@ -272,6 +283,23 @@ int virshStreamSkip(virStreamPtr st ATTRIBUTE_UNUSED,
 
     return lseek(*fd, offset, SEEK_CUR) == (off_t) -1 ? -1 : 0;
 }
+
+int virshStreamInData(virStreamPtr st ATTRIBUTE_UNUSED,
+                      int *inData,
+                      unsigned long long *offset,
+                      void *opaque)
+{
+    virshStreamCallbackDataPtr cbData = opaque;
+    vshControl *ctl = cbData->ctl;
+    int fd = cbData->fd;
+    int ret;
+
+    if ((ret = virFileInData(fd, inData, offset)) < 0)
+        vshError(ctl, "%s", _("Unable to get current position in stream"));
+
+    return ret;
+}
+
 
 /* ---------------
  * Command Connect
