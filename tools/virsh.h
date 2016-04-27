@@ -150,7 +150,21 @@ int virshDomainState(vshControl *ctl, virDomainPtr dom, int *reason);
 int virshStreamSink(virStreamPtr st, const char *bytes, size_t nbytes,
                     void *opaque);
 
+int virshStreamSource(virStreamPtr st,
+                      char *bytes, size_t nbytes, void *opaque);
+
 int virshStreamSkip(virStreamPtr st,
                     unsigned long long offset, void *opaque);
 
+typedef struct _virshStreamCallbackData virshStreamCallbackData;
+typedef virshStreamCallbackData *virshStreamCallbackDataPtr;
+struct _virshStreamCallbackData {
+    vshControl *ctl;
+    int fd;
+};
+
+int virshStreamInData(virStreamPtr st,
+                      int *data,
+                      unsigned long long *offset,
+                      void *opaque);
 #endif /* VIRSH_H */
