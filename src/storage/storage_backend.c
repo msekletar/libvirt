@@ -2234,7 +2234,8 @@ virStorageBackendVolUploadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     int ret = -1;
     int has_snap = 0;
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM, -1);
+
     /* if volume has target format VIR_STORAGE_FILE_PLOOP
      * we need to restore DiskDescriptor.xml, according to
      * new contents of volume. This operation will be perfomed
@@ -2281,7 +2282,8 @@ virStorageBackendVolDownloadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     int ret = -1;
     int has_snap = 0;
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM, -1);
+
     if (vol->target.format == VIR_STORAGE_FILE_PLOOP) {
         has_snap = virStorageBackendPloopHasSnapshots(vol->target.path);
         if (has_snap < 0) {
