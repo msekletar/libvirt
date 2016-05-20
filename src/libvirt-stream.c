@@ -290,7 +290,7 @@ virStreamRecv(virStreamPtr stream,
  * @stream: pointer to the stream object
  * @data: buffer to read into from stream
  * @nbytes: size of @data buffer
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virStreamRecvFlagsValues
  *
  * Reads a series of bytes from the stream. This method may
  * block the calling application for an arbitrary amount
@@ -300,6 +300,29 @@ virStreamRecv(virStreamPtr stream,
  * @flags. In fact, calling virStreamRecvFlags(stream, data,
  * nbytes, 0) is equivalent to calling virStreamRecv(stream,
  * data, nbytes) and vice versa.
+ *
+ * If flag VIR_STREAM_RECV_STOP_AT_HOLE is set, this function
+ * will stop reading from stream if it has reached a hole. In
+ * that case, -3 is returned and virStreamHoleSize() should be
+ * called to get the hole size. An example using this flag might
+ * look like this:
+ *
+ * while (1) {
+ *   char buf[4096];
+ *
+ *   int ret = virStreamRecvFlags(st, buf, len, VIR_STREAM_STOP_AT_HOLE);
+ *   if (ret < 0) {
+ *     if (ret == -3) {
+ *       unsigned long long len;
+ *       ret = virStreamHoleSize(st, &len);
+ *       ...seek len bytes in target...
+ *     } else {
+ *       return -1;
+ *     }
+ *   } else {
+ *       ...write buf to target...
+ *   }
+ * }
  *
  * Returns 0 when the end of the stream is reached, at
  * which time the caller should invoke virStreamFinish()
@@ -311,6 +334,9 @@ virStreamRecv(virStreamPtr stream,
  *
  * Returns -2 if there is no data pending to be read & the
  * stream is marked as non-blocking.
+ *
+ * Returns -3 if there is a hole in stream and caller requested
+ * to stop at a hole.
  */
 int
 virStreamRecvFlags(virStreamPtr stream,
@@ -332,6 +358,8 @@ virStreamRecvFlags(virStreamPtr stream,
         ret = (stream->driver->streamRecvFlags)(stream, data, nbytes, flags);
         if (ret == -2)
             return -2;
+        if (ret == -3)
+            return -3;
         if (ret < 0)
             goto error;
         return ret;
