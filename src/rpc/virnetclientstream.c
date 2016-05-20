@@ -436,7 +436,7 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
     VIR_DEBUG("st=%p client=%p data=%p nbytes=%zu nonblock=%d flags=%x",
               st, client, data, nbytes, nonblock, flags);
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_STREAM_RECV_STOP_AT_HOLE, -1);
 
     virObjectLock(st);
 
@@ -498,6 +498,15 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
     if (st->skipLength) {
         /* Pretend skipLength zeroes was read from stream. */
         size_t len = want;
+
+        /* Yes, pretend unless we are asked not to. */
+        if (flags & VIR_STREAM_RECV_STOP_AT_HOLE) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Stream is in a hole"));
+            rv = -3;
+            goto cleanup;
+        }
+
 
         if (len > st->skipLength)
             len = st->skipLength;
