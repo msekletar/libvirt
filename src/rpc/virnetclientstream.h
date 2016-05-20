@@ -59,7 +59,8 @@ int virNetClientStreamRecvPacket(virNetClientStreamPtr st,
                                  virNetClientPtr client,
                                  char *data,
                                  size_t nbytes,
-                                 bool nonblock);
+                                 bool nonblock,
+                                 unsigned int flags);
 
 int virNetClientStreamSendSkip(virNetClientStreamPtr st,
                                virNetClientPtr client,
