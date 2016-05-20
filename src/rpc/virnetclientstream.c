@@ -550,6 +550,21 @@ virNetClientStreamSendSkip(virNetClientStreamPtr st,
 }
 
 
+int virNetClientStreamHoleSize(virNetClientPtr client ATTRIBUTE_UNUSED,
+                               virNetClientStreamPtr st,
+                               unsigned long long *length)
+{
+    int ret = st->skipLength;
+
+    if (length) {
+        *length = st->skipLength;
+        st->skipLength = 0;
+    }
+
+    return ret;
+}
+
+
 int virNetClientStreamEventAddCallback(virNetClientStreamPtr st,
                                        int events,
                                        virNetClientStreamEventCallback cb,
