@@ -53,6 +53,9 @@ int virStreamRecvFlags(virStreamPtr st,
 int virStreamSkip(virStreamPtr st,
                   unsigned long long length);
 
+int virStreamHoleSize(virStreamPtr,
+                      unsigned long long *length);
+
 
 /**
  * virStreamSourceFunc:
