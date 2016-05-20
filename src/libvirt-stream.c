@@ -403,6 +403,48 @@ virStreamSkip(virStreamPtr stream,
 
 
 /**
+ * virStreamHoleSize:
+ * @stream: pointer to the stream object
+ * @length: number of bytes to skip
+ *
+ * This function is a counterpart to virStreamSkip(). That is, if
+ * one side of a stream has called virStreamSkip() the other side
+ * of the stream should call virStreamHoleSize() to retrieve the
+ * size of hole. If there's currently no hole in the stream, -1
+ * is returned.
+ *
+ * Returns 0 on success,
+ *        -1 on error
+ */
+int
+virStreamHoleSize(virStreamPtr stream,
+                  unsigned long long *length)
+{
+    VIR_DEBUG("stream=%p, length=%p", stream, length);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+    virCheckNonNullArgReturn(length, -1);
+
+    if (stream->driver &&
+        stream->driver->streamHoleSize) {
+        int ret;
+        ret = (stream->driver->streamHoleSize)(stream, length);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(stream->conn);
+    return -1;
+}
+
+
+/**
  * virStreamSendAll:
  * @stream: pointer to the stream object
  * @handler: source callback for reading data from application

@@ -744,6 +744,7 @@ LIBVIRT_2.2.0 {
     global:
         virConnectNodeDeviceEventRegisterAny;
         virConnectNodeDeviceEventDeregisterAny;
+        virStreamHoleSize;
         virStreamRecvFlags;
         virStreamSkip;
 } LIBVIRT_2.0.0;
