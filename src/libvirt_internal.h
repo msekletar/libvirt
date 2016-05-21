@@ -294,4 +294,7 @@ virTypedParameterValidateSet(virConnectPtr conn,
                              virTypedParameterPtr params,
                              int nparams);
 
+int virStreamInData(virStreamPtr stream,
+                    int *data,
+                    unsigned long long *lengtht);
 #endif
