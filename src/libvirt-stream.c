@@ -565,7 +565,111 @@ virStreamSendAll(virStreamPtr stream,
 }
 
 
+
 /**
+ * virStreamSparseSendAll:
+ * @stream: pointer to the stream object
+ * @handler: source callback for reading data from application
+ * @holeHandler: source callback for determining holes
+ * @opaque: application defined data
+ *
+ * Some dummy description here.
+ *
+ * Opaque data in @opaque are shared between @handler and @holeHandler.
+ *
+ * Returns 0 if all the data was successfully sent. The caller
+ * should invoke virStreamFinish(st) to flush the stream upon
+ * success and then virStreamFree
+ *
+ * Returns -1 upon any error, with virStreamAbort() already
+ * having been called,  so the caller need only call
+ * virStreamFree()
+ */
+int virStreamSparseSendAll(virStreamPtr stream,
+                           virStreamSourceFunc handler,
+                           virStreamSourceHoleFunc holeHandler,
+                           void *opaque)
+{
+    char *bytes = NULL;
+    size_t want = VIR_NET_MESSAGE_LEGACY_PAYLOAD_MAX;
+    int ret = -1;
+    unsigned long long dataLen = 0;
+
+    VIR_DEBUG("stream=%p handler=%p holeHandler=%p opaque=%p",
+              stream, handler, holeHandler, opaque);
+
+    virResetLastError();
+
+    virCheckStreamReturn(stream, -1);
+    virCheckNonNullArgGoto(handler, cleanup);
+    virCheckNonNullArgGoto(holeHandler, cleanup);
+
+    if (stream->flags & VIR_STREAM_NONBLOCK) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("data sources cannot be used for non-blocking streams"));
+        goto cleanup;
+    }
+
+    if (VIR_ALLOC_N(bytes, want) < 0)
+        goto cleanup;
+
+    for (;;) {
+        int inData, got, offset = 0;
+        unsigned long long sectionLen;
+
+        if (!dataLen) {
+            if (holeHandler(stream, &inData, &sectionLen, opaque) < 0) {
+                virStreamAbort(stream);
+                goto cleanup;
+            }
+
+            if (!inData) {
+                if (sectionLen && virStreamSkip(stream, sectionLen) < 0) {
+                    virStreamAbort(stream);
+                    goto cleanup;
+                }
+
+                if (sectionLen)
+                    continue;
+
+                /* Here inData == 0 and sectionLen == 0 as well.
+                 * This means, we are in the trailing hole. Don't
+                 * start new iteration but let virStreamSend()
+                 * close the stream gracefully. */
+            } else {
+                dataLen = sectionLen;
+            }
+        }
+
+        if (want > dataLen)
+            want = dataLen;
+
+        got = (handler)(stream, bytes, want, opaque);
+        if (got < 0) {
+            virStreamAbort(stream);
+            goto cleanup;
+        }
+        if (got == 0)
+            break;
+        while (offset < got) {
+            int done;
+            done = virStreamSend(stream, bytes + offset, got - offset);
+            if (done < 0)
+                goto cleanup;
+            offset += done;
+            dataLen -= done;
+        }
+    }
+    ret = 0;
+
+ cleanup:
+    VIR_FREE(bytes);
+
+    if (ret != 0)
+        virDispatchError(stream->conn);
+
+    return ret;
+}/**
  * virStreamRecvAll:
  * @stream: pointer to the stream object
  * @handler: sink callback for writing data to application
