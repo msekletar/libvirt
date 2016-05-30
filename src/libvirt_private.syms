@@ -2572,6 +2572,10 @@ virTypedParamsSerialize;
 virTypedParamsValidate;
 
 
+# util/virudev.h
+virUdevMgrNew;
+
+
 # util/viruri.h
 virURIFormat;
 virURIFormatParams;

@@ -179,6 +179,7 @@ UTIL_SOURCES =							\
 		util/virtime.h util/virtime.c			\
 		util/virtpm.h util/virtpm.c			\
 		util/virtypedparam.c util/virtypedparam.h	\
+		util/virudev.c util/virudev.h			\
 		util/virusb.c util/virusb.h			\
 		util/viruri.h util/viruri.c			\
 		util/virutil.c util/virutil.h			\
