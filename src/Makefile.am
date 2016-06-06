@@ -1006,6 +1006,10 @@ STORAGE_HELPER_DISK_SOURCES =					\
 IO_HELPER_SOURCES =								\
 		iohelper/iohelper.c
 
+IO_HELPER_LIB_SOURCES =							\
+		iohelper/iohelper_message.c				\
+		iohelper/iohelper_message.h
+
 NETWORK_LEASES_HELPER_SOURCES =                                 \
                network/leaseshelper.c
 
@@ -2839,6 +2843,18 @@ libvirt_net_rpc_client_la_LIBADD = \
 libexec_PROGRAMS =
 
 if WITH_LIBVIRTD
+noinst_LTLIBRARIES += libvirt-iohelper.la
+libvirt_iohelper_la_SOURCES = $(IO_HELPER_LIB_SOURCES)
+libvirt_iohelper_la_LDFLAGS =	\
+		$(AM_LDFLAGS)			\
+		$(NULL)
+libvirt_iohelper_la_CFLAGS =	\
+		-I$(srcdir)/util		\
+		-I$(srcdir)/rpc			\
+		$(AM_CFLAGS)			\
+		$(XDR_CFLAGS)			\
+		$(NULL)
+
 libexec_PROGRAMS += libvirt_iohelper
 libvirt_iohelper_SOURCES = $(IO_HELPER_SOURCES)
 libvirt_iohelper_LDFLAGS = \
@@ -2879,7 +2895,9 @@ else ! WITH_NETWORK
 EXTRA_DIST += $(NETWORK_LEASES_HELPER_SOURCES)
 endif ! WITH_NETWORK
 
-endif WITH_LIBVIRTD
+else ! WITH_LIBVIRTD
+EXTRA_DIST += $(IO_HELPER_LIB_SOURCES)
+endif ! WITH_LIBVIRTD
 
 if WITH_STORAGE_DISK
 if WITH_LIBVIRTD
