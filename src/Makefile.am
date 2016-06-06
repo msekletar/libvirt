@@ -92,6 +92,7 @@ augeastest_DATA =
 # These files are not related to driver APIs. Simply generic
 # helper APIs for various purposes
 UTIL_SOURCES =							\
+		util/iohelper_message.c util/iohelper_message.h	\
 		util/viralloc.c util/viralloc.h			\
 		util/virarch.h util/virarch.c			\
 		util/viratomic.h util/viratomic.c		\
