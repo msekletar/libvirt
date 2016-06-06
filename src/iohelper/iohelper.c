@@ -72,6 +72,41 @@ prepare(const char *path, int oflags, int mode,
     return fd;
 }
 
+
+static int
+setupFDs(const char *path,
+         int fd,
+         int oflags,
+         int *fdin,
+         const char **fdinname,
+         int *fdout,
+         const char **fdoutname)
+{
+    switch (oflags & O_ACCMODE) {
+    case O_RDONLY:
+        *fdin = fd;
+        *fdinname = path;
+        *fdout = STDOUT_FILENO;
+        *fdoutname = "stdout";
+        break;
+    case O_WRONLY:
+        *fdin = STDIN_FILENO;
+        *fdinname = "stdin";
+        *fdout = fd;
+        *fdoutname = path;
+        break;
+
+    default:
+        virReportSystemError(EINVAL,
+                             _("Unable to process file with flags %d"),
+                             (oflags & O_ACCMODE));
+        return -1;
+    }
+
+    return 0;
+}
+
+
 static int
 runIOBasic(const char *path, int fd, int oflags, unsigned long long length)
 {
@@ -100,40 +135,32 @@ runIOBasic(const char *path, int fd, int oflags, unsigned long long length)
     buf = (char *) (((intptr_t) base + alignMask) & ~alignMask);
 #endif
 
-    switch (oflags & O_ACCMODE) {
-    case O_RDONLY:
-        fdin = fd;
-        fdinname = path;
-        fdout = STDOUT_FILENO;
-        fdoutname = "stdout";
-        /* To make the implementation simpler, we give up on any
-         * attempt to use O_DIRECT in a non-trivial manner.  */
-        if (direct && ((end = lseek(fd, 0, SEEK_CUR)) != 0 || length)) {
-            virReportSystemError(end < 0 ? errno : EINVAL, "%s",
-                                 _("O_DIRECT read needs entire seekable file"));
-            goto cleanup;
-        }
-        break;
-    case O_WRONLY:
-        fdin = STDIN_FILENO;
-        fdinname = "stdin";
-        fdout = fd;
-        fdoutname = path;
-        /* To make the implementation simpler, we give up on any
-         * attempt to use O_DIRECT in a non-trivial manner.  */
-        if (direct && (end = lseek(fd, 0, SEEK_END)) != 0) {
-            virReportSystemError(end < 0 ? errno : EINVAL, "%s",
-                                 _("O_DIRECT write needs empty seekable file"));
-            goto cleanup;
-        }
-        break;
-
-    case O_RDWR:
-    default:
-        virReportSystemError(EINVAL,
-                             _("Unable to process file with flags %d"),
-                             (oflags & O_ACCMODE));
+    if (setupFDs(path, fd, oflags,
+                 &fdin, &fdinname,
+                 &fdout, &fdoutname) < 0)
         goto cleanup;
+
+    if (direct) {
+        switch (oflags & O_ACCMODE) {
+        case O_RDONLY:
+            /* To make the implementation simpler, we give up on any
+             * attempt to use O_DIRECT in a non-trivial manner.  */
+            if ((end = lseek(fd, 0, SEEK_CUR)) != 0 || length) {
+                virReportSystemError(end < 0 ? errno : EINVAL, "%s",
+                                     _("O_DIRECT read needs entire seekable file"));
+                goto cleanup;
+            }
+            break;
+        case O_WRONLY:
+            /* To make the implementation simpler, we give up on any
+             * attempt to use O_DIRECT in a non-trivial manner.  */
+            if ((end = lseek(fd, 0, SEEK_END)) != 0) {
+                virReportSystemError(end < 0 ? errno : EINVAL, "%s",
+                                     _("O_DIRECT write needs empty seekable file"));
+                goto cleanup;
+            }
+            break;
+        }
     }
 
     while (1) {
