@@ -299,8 +299,9 @@ usage(int status)
         fprintf(stderr, _("%s: try --help for more details"), program_name);
     } else {
         printf(_("Usage: %s FILENAME OFLAGS MODE OFFSET LENGTH DELETE\n"
+                 "   or: %s FILENAME LENGTH FD SPARSE\n"
                  "   or: %s FILENAME LENGTH FD\n"),
-               program_name, program_name);
+               program_name, program_name, program_name);
     }
     exit(status);
 }
@@ -316,6 +317,7 @@ main(int argc, char **argv)
     unsigned int delete = 0;
     int fd = -1;
     int lengthIndex = 0;
+    bool sparse = false;
 
     program_name = argv[0];
 
@@ -353,7 +355,7 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
         fd = prepare(path, oflags, mode, offset);
-    } else if (argc == 4) { /* FILENAME LENGTH FD */
+    } else if (argc == 4 || argc == 5) { /* FILENAME LENGTH FD [SPARSE] */
         lengthIndex = 2;
         if (virStrToLong_i(argv[3], NULL, 10, &fd) < 0) {
             fprintf(stderr, _("%s: malformed fd %s"),
@@ -374,6 +376,9 @@ main(int argc, char **argv)
                     program_name, fd);
             exit(EXIT_FAILURE);
         }
+
+        if (argc == 5)
+            sparse = STREQ(argv[4], "sparse");
     } else { /* unknown argc pattern */
         usage(EXIT_FAILURE);
     }
@@ -384,7 +389,7 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (fd < 0 || runIO(path, fd, oflags, length, false) < 0)
+    if (fd < 0 || runIO(path, fd, oflags, length, sparse) < 0)
         goto error;
 
     if (delete)
