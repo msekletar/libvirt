@@ -23,4 +23,31 @@
 #ifndef __VIR_IOHELPER_MESSAGE_H__
 # define __VIR_IOHELPER_MESSAGE_H__
 
+# include <unistd.h>
+
+# define BUFSIZE 4096
+
+typedef enum {
+    IOHELPER_MESSAGE_DATA,
+} iohelperMessageType;
+
+typedef struct _iohelperMessage iohelperMessage;
+typedef iohelperMessage *iohelperMessagePtr;
+struct _iohelperMessage {
+    int type; /* enum iohelperMessageType */
+
+    union {
+        /* type == IOHELPER_MESSAGE_DATA */
+        struct {
+            size_t buflen; /* length of @buf */
+            char buf[BUFSIZE];
+        } buf;
+    } data;
+};
+
+ssize_t iohelperRead(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg);
+ssize_t iohelperWrite(const char *fdName, int fd, iohelperMessagePtr msg);
+
+void iohelperFree(iohelperMessagePtr msg);
+
 #endif /* __VIR_IOHELPER_H__ */

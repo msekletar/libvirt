@@ -1172,6 +1172,12 @@ virSecurityManagerStackAddNested;
 virSecurityManagerVerify;
 
 
+# util/iohelper_message.h
+iohelperFree;
+iohelperRead;
+iohelperWrite;
+
+
 # util/viralloc.h
 virAlloc;
 virAllocN;

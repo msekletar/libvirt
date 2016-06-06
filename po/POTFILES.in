@@ -178,6 +178,7 @@ src/test/test_driver.c
 src/uml/uml_conf.c
 src/uml/uml_driver.c
 src/util/iohelper.c
+src/util/iohelper_message.c
 src/util/viralloc.c
 src/util/viraudit.c
 src/util/virauth.c

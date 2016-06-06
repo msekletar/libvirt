@@ -22,3 +22,81 @@
 #include <config.h>
 
 #include "iohelper_message.h"
+#include "viralloc.h"
+#include "virerror.h"
+#include "virfile.h"
+#include "virlog.h"
+
+#define VIR_FROM_THIS VIR_FROM_NONE
+VIR_LOG_INIT("util.ioheler_message");
+
+
+void
+iohelperFree(iohelperMessagePtr msg)
+{
+    if (!msg)
+        return;
+
+    VIR_FREE(msg);
+}
+
+
+static ssize_t
+iohelperReadPlain(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg)
+{
+    ssize_t got;
+
+    if (VIR_ALLOC(*msg) < 0)
+        goto error;
+
+    if (buflen > BUFSIZE)
+        buflen = BUFSIZE;
+
+    got = saferead(fd, (*msg)->data.buf.buf, buflen);
+    if (got < 0) {
+        virReportSystemError(errno, _("Unable to read %s"), fdName);
+        goto error;
+    }
+
+    (*msg)->type = IOHELPER_MESSAGE_DATA;
+    (*msg)->data.buf.buflen = got;
+
+    return got;
+
+ error:
+    iohelperFree(*msg);
+    *msg = NULL;
+    return -1;
+}
+
+
+static ssize_t
+iohelperWritePlain(const char *fdName, int fd, iohelperMessagePtr msg)
+{
+    if (msg->type == IOHELPER_MESSAGE_DATA) {
+        ssize_t written = safewrite(fd, msg->data.buf.buf, msg->data.buf.buflen);
+        if (written < 0) {
+            virReportSystemError(errno, _("Unable to write %s"), fdName);
+            return -1;
+        }
+        return written;
+    }
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Unknown message type: %d"), msg->type);
+    return -1;
+}
+
+
+ssize_t
+iohelperRead(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg)
+{
+    return iohelperReadPlain(fdName, fd, buflen, msg);
+}
+
+
+ssize_t
+iohelperWrite(const char *fdName, int fd, iohelperMessagePtr msg)
+{
+    return iohelperWritePlain(fdName, fd, msg);
+}
