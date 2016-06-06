@@ -23,6 +23,7 @@
 #ifndef __VIR_IOHELPER_MESSAGE_H__
 # define __VIR_IOHELPER_MESSAGE_H__
 
+# include <stdbool.h>
 # include <unistd.h>
 
 # define BUFSIZE 4096
@@ -45,8 +46,10 @@ struct _iohelperMessage {
     } data;
 };
 
-ssize_t iohelperRead(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg);
-ssize_t iohelperWrite(const char *fdName, int fd, iohelperMessagePtr msg);
+ssize_t iohelperRead(const char *fdName, int fd, size_t buflen,
+                     iohelperMessagePtr *msg, bool formatted);
+ssize_t iohelperWrite(const char *fdName, int fd,
+                      iohelperMessagePtr msg, bool formatted);
 
 void iohelperFree(iohelperMessagePtr msg);
 

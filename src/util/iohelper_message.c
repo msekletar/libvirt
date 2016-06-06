@@ -88,15 +88,99 @@ iohelperWritePlain(const char *fdName, int fd, iohelperMessagePtr msg)
 }
 
 
-ssize_t
-iohelperRead(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg)
+static bool
+iohelperMessageValid(iohelperMessagePtr msg)
 {
-    return iohelperReadPlain(fdName, fd, buflen, msg);
+    if (!msg)
+        return true;
+
+    if (msg->type != IOHELPER_MESSAGE_DATA) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unknown message type %d"), msg->type);
+        return false;
+    }
+
+    return true;
+}
+
+
+static ssize_t
+iohelperReadFormatted(const char *fdName, int fd, iohelperMessagePtr *msg)
+{
+    char *buf;
+    ssize_t want, offset = 0, got = 0;
+
+    if (VIR_ALLOC(*msg) < 0)
+        goto error;
+
+    buf = (char *) *msg;
+    want = sizeof(**msg);
+    while (offset < want) {
+        got = saferead(fd, buf + offset, want);
+        if (got < 0) {
+            virReportSystemError(errno, _("Unable to read %s"), fdName);
+            goto error;
+        }
+
+        want -= got;
+        offset += got;
+    }
+
+    /* Now that we read the message, we should validate it. */
+    if (!iohelperMessageValid(*msg))
+        goto error;
+
+    return (*msg)->data.buf.buflen;
+
+ error:
+    iohelperFree(*msg);
+    *msg = NULL;
+    return -1;
+}
+
+
+static ssize_t
+iohelperWriteFormatted(const char *fdName, int fd, iohelperMessagePtr msg)
+{
+    char *buf;
+    ssize_t want, offset = 0, got = 0;
+
+    if (!iohelperMessageValid(msg))
+        return -1;
+
+    buf = (char *) msg;
+    want = sizeof(*msg);
+    while (offset < want) {
+        got = safewrite(fd, buf + offset, want);
+        if (got < 0) {
+            virReportSystemError(errno, _("Unable to write %s"), fdName);
+            return -1;
+        }
+
+        want -= got;
+        offset += got;
+    }
+
+    return msg->data.buf.buflen;
 }
 
 
 ssize_t
-iohelperWrite(const char *fdName, int fd, iohelperMessagePtr msg)
+iohelperRead(const char *fdName, int fd, size_t buflen,
+             iohelperMessagePtr *msg, bool formatted)
 {
-    return iohelperWritePlain(fdName, fd, msg);
+    if (formatted)
+        return iohelperReadFormatted(fdName, fd, msg);
+    else
+        return iohelperReadPlain(fdName, fd, buflen, msg);
+}
+
+
+ssize_t
+iohelperWrite(const char *fdName, int fd, iohelperMessagePtr msg, bool formatted)
+{
+    if (formatted)
+        return iohelperWriteFormatted(fdName, fd, msg);
+    else
+        return iohelperWritePlain(fdName, fd, msg);
 }
