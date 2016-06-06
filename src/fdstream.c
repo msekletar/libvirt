@@ -383,9 +383,8 @@ virFDStreamAbort(virStreamPtr st)
 static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
 {
     struct virFDStreamData *fdst = st->privateData;
+    size_t offset, want;
     int ret;
-    iohelperMessage msg = {.type = IOHELPER_MESSAGE_DATA,
-        .data.buf.buf = (char *)bytes, .data.buf.buflen = nbytes};
 
     if (nbytes > INT_MAX) {
         virReportSystemError(ERANGE, "%s",
@@ -413,19 +412,34 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
             nbytes = fdst->length - fdst->offset;
     }
 
-    ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
-    if (ret < 0) {
-        VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        VIR_WARNINGS_RESET
-            ret = -2;
+    offset = 0;
+    while (offset < nbytes) {
+        iohelperMessage msg = {.type = IOHELPER_MESSAGE_DATA};
+
+        want = nbytes - offset;
+        if (nbytes - offset > IOHELPER_BUFSIZE)
+            want = IOHELPER_BUFSIZE;
+
+        memcpy(msg.data.buf.buf, bytes + offset, want);
+        msg.data.buf.buflen = want;
+
+        ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
+        if (ret < 0) {
+            VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    VIR_WARNINGS_RESET
+                        ret = -2;
+                } else {
+                    ret = -1;
+                    virReportSystemError(errno, "%s",
+                                         _("cannot write to stream"));
+                }
         } else {
-            ret = -1;
-            virReportSystemError(errno, "%s",
-                                 _("cannot write to stream"));
+            offset += ret;
+
+            if (fdst->length)
+                fdst->offset += ret;
         }
-    } else if (fdst->length) {
-        fdst->offset += ret;
     }
 
     virMutexUnlock(&fdst->lock);
@@ -465,13 +479,15 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
     if (!fdst->msg) {
         ret = iohelperRead(NULL, fdst->fd, nbytes, &fdst->msg, fdst->sparse);
         if (ret < 0)
-            return -1;
+            goto cleanup;
         fdst->msgOffset = 0;
     }
 
     /* Shouldn't happen (TM) */
-    if (fdst->msg->type != IOHELPER_MESSAGE_DATA)
-        return 0;
+    if (fdst->msg->type != IOHELPER_MESSAGE_DATA) {
+        ret = 0;
+        goto cleanup;
+    }
 
     if (nbytes > fdst->msg->data.buf.buflen)
         nbytes = fdst->msg->data.buf.buflen;
@@ -482,9 +498,11 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 
     if (fdst->msgOffset == fdst->msg->data.buf.buflen) {
         iohelperFree(fdst->msg);
+        fdst->msg = NULL;
         fdst->msgOffset = 0;
     }
 
+ cleanup:
     virMutexUnlock(&fdst->lock);
     return ret;
 }
@@ -542,7 +560,7 @@ virFDStreamInData(virStreamPtr st,
     if (!fdst->msg) {
         ret = iohelperRead(NULL, fdst->fd, nbytes, &fdst->msg, fdst->sparse);
         if (ret < 0)
-            return -1;
+            goto cleanup;
         fdst->msgOffset = 0;
     }
 

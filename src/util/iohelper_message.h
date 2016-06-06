@@ -26,7 +26,7 @@
 # include <stdbool.h>
 # include <unistd.h>
 
-# define BUFSIZE 4096
+# define IOHELPER_BUFSIZE 1024
 
 typedef enum {
     IOHELPER_MESSAGE_DATA,
@@ -42,7 +42,7 @@ struct _iohelperMessage {
         /* type == IOHELPER_MESSAGE_DATA */
         struct {
             size_t buflen; /* length of @buf */
-            char buf[BUFSIZE];
+            char buf[IOHELPER_BUFSIZE];
         } buf;
 
         /* type == IOHELPER_MESSAGE_HOLE */

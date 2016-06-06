@@ -130,8 +130,8 @@ iohelperReadPlain(const char *fdName, int fd, size_t buflen, iohelperMessagePtr 
         goto error;
 
     if (inData && length) {
-        if (buflen > BUFSIZE)
-            buflen = BUFSIZE;
+        if (buflen > IOHELPER_BUFSIZE)
+            buflen = IOHELPER_BUFSIZE;
 
         if (buflen > length)
             buflen = length;
