@@ -44,6 +44,7 @@
 #include "virstring.h"
 #include "virtime.h"
 #include "virprocess.h"
+#include "iohelper_message.h"
 
 #define VIR_FROM_THIS VIR_FROM_STREAMS
 
@@ -57,6 +58,8 @@ struct virFDStreamData {
     unsigned long long offset;
     unsigned long long length;
     bool sparse;
+    iohelperMessagePtr msg;
+    size_t msgOffset;
 
     int watch;
     int events;         /* events the stream callback is subscribed for */
@@ -381,6 +384,8 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
 {
     struct virFDStreamData *fdst = st->privateData;
     int ret;
+    iohelperMessage msg = {.type = IOHELPER_MESSAGE_DATA,
+        .data.buf.buf = (char *)bytes, .data.buf.buflen = nbytes};
 
     if (nbytes > INT_MAX) {
         virReportSystemError(ERANGE, "%s",
@@ -408,15 +413,12 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
             nbytes = fdst->length - fdst->offset;
     }
 
- retry:
-    ret = write(fdst->fd, bytes, nbytes);
+    ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
     if (ret < 0) {
         VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
         VIR_WARNINGS_RESET
             ret = -2;
-        } else if (errno == EINTR) {
-            goto retry;
         } else {
             ret = -1;
             virReportSystemError(errno, "%s",
@@ -460,22 +462,27 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
             nbytes = fdst->length - fdst->offset;
     }
 
- retry:
-    ret = read(fdst->fd, bytes, nbytes);
-    if (ret < 0) {
-        VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        VIR_WARNINGS_RESET
-            ret = -2;
-        } else if (errno == EINTR) {
-            goto retry;
-        } else {
-            ret = -1;
-            virReportSystemError(errno, "%s",
-                                 _("cannot read from stream"));
-        }
-    } else if (fdst->length) {
-        fdst->offset += ret;
+    if (!fdst->msg) {
+        ret = iohelperRead(NULL, fdst->fd, nbytes, &fdst->msg, fdst->sparse);
+        if (ret < 0)
+            return -1;
+        fdst->msgOffset = 0;
+    }
+
+    /* Shouldn't happen (TM) */
+    if (fdst->msg->type != IOHELPER_MESSAGE_DATA)
+        return 0;
+
+    if (nbytes > fdst->msg->data.buf.buflen)
+        nbytes = fdst->msg->data.buf.buflen;
+
+    memcpy(bytes, fdst->msg->data.buf.buf + fdst->msgOffset, nbytes);
+    fdst->msgOffset += nbytes;
+    fdst->offset += ret;
+
+    if (fdst->msgOffset == fdst->msg->data.buf.buflen) {
+        iohelperFree(fdst->msg);
+        fdst->msgOffset = 0;
     }
 
     virMutexUnlock(&fdst->lock);
@@ -488,7 +495,7 @@ virFDStreamSkip(virStreamPtr st,
                 unsigned long long length)
 {
     struct virFDStreamData *fdst = st->privateData;
-    off_t off;
+    iohelperMessage msg = {.type = IOHELPER_MESSAGE_HOLE, .data.length = length};
     int ret = -1;
 
     virMutexLock(&fdst->lock);
@@ -501,13 +508,14 @@ virFDStreamSkip(virStreamPtr st,
         fdst->offset += length;
     }
 
-    off = lseek(fdst->fd, length, SEEK_CUR);
-    if (off == (off_t) -1) {
-        virReportSystemError(errno, "%s",
-                             _("unable to seek"));
+    if (!fdst->sparse) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Stream not skippable"));
         goto cleanup;
     }
-    ret = 0;
+
+    ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
+
  cleanup:
     virMutexUnlock(&fdst->lock);
     return ret;
@@ -520,73 +528,34 @@ virFDStreamInData(virStreamPtr st,
                   unsigned long long *length)
 {
     struct virFDStreamData *fdst = st->privateData;
-    int fd;
-    off_t cur, data, hole;
     int ret = -1;
+    const size_t nbytes = 0;
 
     virMutexLock(&fdst->lock);
 
-    fd = fdst->fd;
-
-    /* Get current position */
-    cur = lseek(fd, 0, SEEK_CUR);
-    if (cur == (off_t) -1) {
-        virReportSystemError(errno, "%s",
-                             _("Unable to get current position in stream"));
+    if (!fdst->sparse) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("stream not skippable"));
         goto cleanup;
     }
 
-    /* Now try to get data and hole offsets */
-    data = lseek(fd, cur, SEEK_DATA);
+    if (!fdst->msg) {
+        ret = iohelperRead(NULL, fdst->fd, nbytes, &fdst->msg, fdst->sparse);
+        if (ret < 0)
+            return -1;
+        fdst->msgOffset = 0;
+    }
 
-    /* There are four options:
-     * 1) data == cur;  @cur is in data
-     * 2) data > cur; @cur is in a hole, next data at @data
-     * 3) data < 0, errno = ENXIO; either @cur is in trailing hole, or @cur is beyond EOF.
-     * 4) data < 0, errno != ENXIO; we learned nothing
-     */
-
-    if (data == (off_t) -1) {
-        /* cases 3 and 4 */
-        if (errno != ENXIO) {
-            virReportSystemError(errno, "%s",
-                                 _("Unable to seek to data"));
-            goto cleanup;
-        }
+    if (fdst->msg->type == IOHELPER_MESSAGE_HOLE) {
         *inData = 0;
-        *length = 0;
-    } else if (data > cur) {
-        /* case 2 */
-        *inData = 0;
-        *length = data - cur;
+        *length = fdst->msg->data.length;
     } else {
-        /* case 1 */
         *inData = 1;
-
-        /* We don't know where does the next hole start. Let's
-         * find out. Here we get the same 4 possibilities as
-         * described above.*/
-        hole = lseek(fd, data, SEEK_HOLE);
-        if (hole == (off_t) -1 || hole == data) {
-            /* cases 1, 3 and 4 */
-            /* Wait a second. The reason why we are here is
-             * because we are in data. But at the same time we
-             * are in a trailing hole? Wut!? Do the best what we
-             * can do here. */
-            virReportSystemError(errno, "%s",
-                                 _("unable to seek to hole"));
-            goto cleanup;
-        } else {
-            /* case 2 */
-            *length = (hole - data);
-        }
+        *length = fdst->msg->data.buf.buflen;
     }
 
     ret = 0;
  cleanup:
-    /* At any rate, reposition back to where we started. */
-    if (cur != (off_t) -1)
-        ignore_value(lseek(fd, cur, SEEK_SET));
     virMutexUnlock(&fdst->lock);
     return ret;
 }
