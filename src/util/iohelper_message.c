@@ -41,25 +41,113 @@ iohelperFree(iohelperMessagePtr msg)
 }
 
 
+static int
+iohelperInData(const char *fdName,
+               int fd,
+               bool *inData,
+               unsigned long long *length)
+{
+    int ret = -1;
+    off_t cur, data, hole;
+
+    *inData = 0;
+    *length = 0;
+
+    /* Get current position */
+    cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t) -1) {
+        virReportSystemError(errno,
+                             _("Unable to get current position in %s"), fdName);
+        goto cleanup;
+    }
+
+    /* Now try to get data and hole offsets */
+    data = lseek(fd, cur, SEEK_DATA);
+
+    /* There are four options:
+     * 1) data == cur;  @cur is in data
+     * 2) data > cur; @cur is in a hole, next data at @data
+     * 3) data < 0, errno = ENXIO; either @cur is in trailing hole, or @cur is beyond EOF.
+     * 4) data < 0, errno != ENXIO; we learned nothing
+     */
+
+    if (data == (off_t) -1) {
+        /* cases 3 and 4 */
+        if (errno != ENXIO) {
+            virReportSystemError(errno,
+                                 _("Unable to seek to data in %s"), fdName);
+            goto cleanup;
+        }
+        *inData = false;
+        *length = 0;
+    } else if (data > cur) {
+        /* case 2 */
+        *inData = false;
+        *length = data - cur;
+    } else {
+        /* case 1 */
+        *inData = true;
+
+        /* We don't know where does the next hole start. Let's
+         * find out. Here we get the same 4 possibilities as
+         * described above.*/
+        hole = lseek(fd, data, SEEK_HOLE);
+        if (hole == (off_t) -1 || hole == data) {
+            /* cases 1, 3 and 4 */
+            /* Wait a second. The reason why we are here is
+             * because we are in data. But at the same time we
+             * are in a trailing hole? Wut!? Do the best what we
+             * can do here. */
+            virReportSystemError(errno,
+                                 _("unable to seek to hole in %s"), fdName);
+            goto cleanup;
+        } else {
+            /* case 2 */
+            *length = (hole - data);
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    /* If we were in data initially, reposition back. */
+    if (*inData && cur != (off_t) -1)
+        ignore_value(lseek(fd, cur, SEEK_SET));
+    return ret;
+}
+
+
 static ssize_t
 iohelperReadPlain(const char *fdName, int fd, size_t buflen, iohelperMessagePtr *msg)
 {
     ssize_t got;
+    bool inData;
+    unsigned long long length;
+
+    if (iohelperInData(fdName, fd, &inData, &length) < 0)
+        goto error;
 
     if (VIR_ALLOC(*msg) < 0)
         goto error;
 
-    if (buflen > BUFSIZE)
-        buflen = BUFSIZE;
+    if (inData && length) {
+        if (buflen > BUFSIZE)
+            buflen = BUFSIZE;
 
-    got = saferead(fd, (*msg)->data.buf.buf, buflen);
-    if (got < 0) {
-        virReportSystemError(errno, _("Unable to read %s"), fdName);
-        goto error;
+        if (buflen > length)
+            buflen = length;
+
+        got = saferead(fd, (*msg)->data.buf.buf, buflen);
+        if (got < 0) {
+            virReportSystemError(errno, _("Unable to read %s"), fdName);
+            goto error;
+        }
+
+        (*msg)->type = IOHELPER_MESSAGE_DATA;
+        (*msg)->data.buf.buflen = got;
+    } else {
+        (*msg)->type = IOHELPER_MESSAGE_HOLE;
+        got = (*msg)->data.length = length;
     }
-
-    (*msg)->type = IOHELPER_MESSAGE_DATA;
-    (*msg)->data.buf.buflen = got;
 
     return got;
 
@@ -80,6 +168,13 @@ iohelperWritePlain(const char *fdName, int fd, iohelperMessagePtr msg)
             return -1;
         }
         return written;
+    } else if (msg->type == IOHELPER_MESSAGE_HOLE) {
+        if (lseek(fd, msg->data.length, SEEK_CUR) == (off_t) -1) {
+            virReportSystemError(errno, _("Unable to seek %s"), fdName);
+            return -1;
+        }
+
+        return msg->data.length;
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -94,7 +189,8 @@ iohelperMessageValid(iohelperMessagePtr msg)
     if (!msg)
         return true;
 
-    if (msg->type != IOHELPER_MESSAGE_DATA) {
+    if (msg->type != IOHELPER_MESSAGE_DATA &&
+        msg->type != IOHELPER_MESSAGE_HOLE) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unknown message type %d"), msg->type);
         return false;

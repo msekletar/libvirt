@@ -30,6 +30,7 @@
 
 typedef enum {
     IOHELPER_MESSAGE_DATA,
+    IOHELPER_MESSAGE_HOLE,
 } iohelperMessageType;
 
 typedef struct _iohelperMessage iohelperMessage;
@@ -43,6 +44,9 @@ struct _iohelperMessage {
             size_t buflen; /* length of @buf */
             char buf[BUFSIZE];
         } buf;
+
+        /* type == IOHELPER_MESSAGE_HOLE */
+        unsigned long long length;
     } data;
 };
 
