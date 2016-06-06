@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "iohelper_message.h"
 #include "virutil.h"
 #include "virthread.h"
 #include "virfile.h"
@@ -227,6 +228,51 @@ runIOBasic(const char *path, int fd, int oflags, unsigned long long length)
 }
 
 static int
+runIOFormatted(const char *path,
+               int fd,
+               int oflags,
+               unsigned long long length,
+               bool formatted)
+{
+    int ret = -1;
+    int fdin, fdout;
+    const char *fdinname, *fdoutname;
+    bool formattedIN = false, formattedOUT = false;
+    unsigned long long total = 0;
+    iohelperMessagePtr msg = NULL;
+
+    if (setupFDs(path, fd, oflags,
+                 &fdin, &fdinname,
+                 &fdout, &fdoutname) < 0)
+        goto cleanup;
+
+    if ((oflags & O_ACCMODE) == O_RDONLY)
+        formattedOUT = formatted;
+    else if ((oflags & O_ACCMODE) == O_WRONLY)
+        formattedIN = formatted;
+
+    while (1) {
+        size_t buflen = 64 * 1024;
+
+        if (length && (length + buflen) > total)
+            buflen = length - total;
+
+        iohelperFree(msg);
+
+        if (iohelperRead(fdinname, fdin, buflen, &msg, formattedIN))
+            goto cleanup;
+
+        if (iohelperWrite(fdoutname, fdout, msg, formattedOUT) < 0)
+            goto cleanup;
+    }
+
+    ret = 0;
+ cleanup:
+    iohelperFree(msg);
+    return ret;
+}
+
+static int
 runIO(const char *path, int fd, int oflags, unsigned long long length, bool sparse)
 {
     bool direct = O_DIRECT && ((oflags & O_DIRECT) != 0);
@@ -237,6 +283,9 @@ runIO(const char *path, int fd, int oflags, unsigned long long length, bool spar
                        _("O_DIRECT and sparse streams is not supported at once"));
         return -1;
     }
+
+    if (sparse)
+        return runIOFormatted(path, fd, oflags, length, sparse);
 
     return runIOBasic(path, fd, oflags, length);
 }
