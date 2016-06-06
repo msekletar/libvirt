@@ -891,11 +891,12 @@ int virFDStreamOpenBlockDevice(virStreamPtr st,
                                const char *path,
                                unsigned long long offset,
                                unsigned long long length,
-                               int oflags)
+                               int oflags,
+                               bool sparse)
 {
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags, 0, true, false);
+                                       oflags, 0, true, sparse);
 }
 
 int virFDStreamSetInternalCloseCb(virStreamPtr st,

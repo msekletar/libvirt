@@ -2233,6 +2233,7 @@ virStorageBackendVolUploadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     char *target_path = vol->target.path;
     int ret = -1;
     int has_snap = 0;
+    const bool sparse = flags & VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM;
 
     virCheckFlags(VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM, -1);
 
@@ -2260,7 +2261,7 @@ virStorageBackendVolUploadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     /* Not using O_CREAT because the file is required to already exist at
      * this point */
     ret = virFDStreamOpenBlockDevice(stream, target_path,
-                                     offset, len, O_WRONLY);
+                                     offset, len, O_WRONLY, sparse);
 
  cleanup:
     VIR_FREE(path);
@@ -2280,6 +2281,7 @@ virStorageBackendVolDownloadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     char *target_path = vol->target.path;
     int ret = -1;
     int has_snap = 0;
+    const bool sparse = flags & VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM;
 
     virCheckFlags(VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM, -1);
 
@@ -2299,7 +2301,7 @@ virStorageBackendVolDownloadLocal(virConnectPtr conn ATTRIBUTE_UNUSED,
     }
 
     ret = virFDStreamOpenBlockDevice(stream, target_path,
-                                     offset, len, O_RDONLY);
+                                     offset, len, O_RDONLY, sparse);
 
  cleanup:
     VIR_FREE(path);

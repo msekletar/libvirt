@@ -60,7 +60,8 @@ int virFDStreamOpenBlockDevice(virStreamPtr st,
                                const char *path,
                                unsigned long long offset,
                                unsigned long long length,
-                               int oflags);
+                               int oflags,
+                               bool sparse);
 
 int virFDStreamSetInternalCloseCb(virStreamPtr st,
                                   virFDStreamInternalCloseCb cb,
