@@ -752,9 +752,9 @@ virFDStreamOpenFileInternal(virStreamPtr st,
      * support those we need to fork a helper process to do
      * the I/O so we just have a fifo. Or use AIO :-(
      */
-    if (0 && ((st->flags & VIR_STREAM_NONBLOCK) &&
-              ((!S_ISCHR(sb.st_mode) &&
-                !S_ISFIFO(sb.st_mode)) || forceIOHelper))) {
+    if (((st->flags & VIR_STREAM_NONBLOCK) &&
+         ((!S_ISCHR(sb.st_mode) &&
+           !S_ISFIFO(sb.st_mode)) || forceIOHelper))) {
         int fds[2] = { -1, -1 };
 
         if ((oflags & O_ACCMODE) == O_RDWR) {

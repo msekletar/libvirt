@@ -259,7 +259,7 @@ runIOFormatted(const char *path,
 
         iohelperFree(msg);
 
-        if (iohelperRead(fdinname, fdin, buflen, &msg, formattedIN))
+        if (iohelperRead(fdinname, fdin, buflen, &msg, formattedIN) < 0)
             goto cleanup;
 
         if (iohelperWrite(fdoutname, fdout, msg, formattedOUT) < 0)
