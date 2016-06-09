@@ -46,6 +46,9 @@ int qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
 int qemuDomainAttachRedirdevDevice(virQEMUDriverPtr driver,
                                    virDomainObjPtr vm,
                                    virDomainRedirdevDefPtr hostdev);
+int qemuDomainDetachRedirdevDevice(virQEMUDriverPtr driver,
+                                   virDomainObjPtr vm,
+                                   virDomainRedirdevDefPtr hostdev);
 int qemuDomainAttachHostDevice(virConnectPtr conn,
                                virQEMUDriverPtr driver,
                                virDomainObjPtr vm,

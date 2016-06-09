@@ -3651,6 +3651,49 @@ qemuDomainRemoveRNGDevice(virQEMUDriverPtr driver,
     return ret;
 }
 
+static int
+qemuDomainRemoveRedirdevDevice(virQEMUDriverPtr driver,
+                               virDomainObjPtr vm,
+                               virDomainRedirdevDefPtr redirdev)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    virObjectEventPtr event;
+    char *charAlias = NULL;
+    ssize_t idx;
+    int ret = -1;
+
+    VIR_DEBUG("Removing redirdev device %s from domain %p %s",
+              redirdev->info.alias, vm, vm->def->name);
+
+    if (virAsprintf(&charAlias, "char%s", redirdev->info.alias) < 0)
+        goto cleanup;
+
+    idx = virDomainRedirdevDefFind(vm->def, redirdev);
+
+    /* QEMU removed the chardev for us already. But we can try to
+     * remove it too just to be sure. */
+    qemuDomainObjEnterMonitor(driver, vm);
+    ignore_value(qemuMonitorDetachCharDev(priv->mon, charAlias));
+    if (qemuDomainObjExitMonitor(driver, vm) < 0)
+        goto cleanup;
+
+    virDomainAuditRedirdev(vm, redirdev, "detach", idx != -1);
+
+    event = virDomainEventDeviceRemovedNewFromObj(vm, redirdev->info.alias);
+    qemuDomainEventQueue(driver, event);
+
+    if (idx >= 0)
+        virDomainRedirdevDefRemove(vm->def, idx);
+    qemuDomainReleaseDeviceAddress(vm, &redirdev->info, NULL);
+    virDomainRedirdevDefFree(redirdev);
+    ret = 0;
+
+ cleanup:
+    VIR_FREE(charAlias);
+    return ret;
+}
+
+
 
 int
 qemuDomainRemoveDevice(virQEMUDriverPtr driver,
@@ -3682,6 +3725,9 @@ qemuDomainRemoveDevice(virQEMUDriverPtr driver,
     case VIR_DOMAIN_DEVICE_MEMORY:
         ret = qemuDomainRemoveMemoryDevice(driver, vm, dev->data.memory);
         break;
+    case VIR_DOMAIN_DEVICE_REDIRDEV:
+        ret = qemuDomainRemoveRedirdevDevice(driver, vm, dev->data.redirdev);
+        break;
 
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LEASE:
@@ -3692,7 +3738,6 @@ qemuDomainRemoveDevice(virQEMUDriverPtr driver,
     case VIR_DOMAIN_DEVICE_WATCHDOG:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
-    case VIR_DOMAIN_DEVICE_REDIRDEV:
     case VIR_DOMAIN_DEVICE_SMARTCARD:
     case VIR_DOMAIN_DEVICE_MEMBALLOON:
     case VIR_DOMAIN_DEVICE_NVRAM:
@@ -4708,4 +4753,47 @@ qemuDomainHotplugDelVcpu(virQEMUDriverPtr driver,
     }
 
     return qemuDomainRemoveVcpu(driver, vm, vcpu);
+}
+
+
+int
+qemuDomainDetachRedirdevDevice(virQEMUDriverPtr driver,
+                               virDomainObjPtr vm,
+                               virDomainRedirdevDefPtr redirdev)
+{
+    int ret = -1;
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    virDomainRedirdevDefPtr tmpRedirdev;
+    ssize_t idx;
+
+    if ((idx = virDomainRedirdevDefFind(vm->def, redirdev)) < 0) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("no matching redirdev was not found"));
+        return -1;
+    }
+
+    tmpRedirdev = vm->def->redirdevs[idx];
+
+    if (!tmpRedirdev->info.alias) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("alias for the redirdev was not found"));
+        goto cleanup;
+    }
+
+    qemuDomainMarkDeviceForRemoval(vm, &tmpRedirdev->info);
+
+    qemuDomainObjEnterMonitor(driver, vm);
+    if (qemuMonitorDelDevice(priv->mon, tmpRedirdev->info.alias) < 0) {
+        ignore_value(qemuDomainObjExitMonitor(driver, vm));
+        goto cleanup;
+    }
+    if (qemuDomainObjExitMonitor(driver, vm) < 0)
+        goto cleanup;
+
+    if ((ret = qemuDomainWaitForDeviceRemoval(vm)) == 1)
+        ret = qemuDomainRemoveRedirdevDevice(driver, vm, tmpRedirdev);
+
+ cleanup:
+    qemuDomainResetDeviceRemoval(vm);
+    return ret;
 }
