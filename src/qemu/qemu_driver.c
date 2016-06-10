@@ -8553,23 +8553,23 @@ qemuDomainDetachDeviceLiveAndConfig(virQEMUDriverPtr driver,
         if (!vmdef)
             goto cleanup;
 
-        if (virDomainDefCompatibleDevice(vmdef, dev,
+        if (virDomainDefCompatibleDevice(vmdef, dev_copy,
                                          VIR_DOMAIN_DEVICE_ACTION_DETACH) < 0)
             goto cleanup;
 
-        if ((ret = qemuDomainDetachDeviceConfig(vmdef, dev, caps,
+        if ((ret = qemuDomainDetachDeviceConfig(vmdef, dev_copy, caps,
                                                 parse_flags,
                                                 driver->xmlopt)) < 0)
             goto cleanup;
     }
 
     if (flags & VIR_DOMAIN_AFFECT_LIVE) {
-        if (virDomainDefCompatibleDevice(vm->def, dev_copy,
+        if (virDomainDefCompatibleDevice(vm->def, dev,
                                          VIR_DOMAIN_DEVICE_ACTION_DETACH) < 0)
             goto cleanup;
 
-        if ((ret = qemuDomainDetachDeviceLive(vm, dev_copy, driver)) < 0)
-            goto cleanup;
+        if ((ret = qemuDomainDetachDeviceLive(vm, dev_copy, dom)) < 0)
+            goto endjob;
         /*
          * update domain status forcibly because the domain status may be
          * changed even if we failed to attach the device. For example,
