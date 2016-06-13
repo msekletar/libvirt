@@ -21,6 +21,10 @@
 
 #include <config.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "iohelper_message.h"
 #include "viralloc.h"
 #include "virerror.h"
@@ -122,9 +126,24 @@ iohelperReadPlain(const char *fdName, int fd, size_t buflen, iohelperMessagePtr 
     ssize_t got;
     bool inData;
     unsigned long long length;
+    struct stat sb;
 
-    if (iohelperInData(fdName, fd, &inData, &length) < 0)
+    if (fstat(fd, &sb) < 0) {
+        virReportSystemError(errno, _("Unable to stat %s"), fdName);
         goto error;
+    }
+
+    /* It may happen, that even the @fd we are reading from is
+     * not a regular file, but a pipe for instance. In that case,
+     * there won't be any holes and we shouldn't try to do
+     * anything smart here. */
+    if (S_ISREG(sb.st_mode)) {
+        if (iohelperInData(fdName, fd, &inData, &length) < 0)
+            goto error;
+    } else {
+        inData = true;
+        length = buflen;
+    }
 
     if (VIR_ALLOC(*msg) < 0)
         goto error;
