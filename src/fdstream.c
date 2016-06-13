@@ -478,9 +478,17 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 
     if (!fdst->msg) {
         ret = iohelperRead(NULL, fdst->fd, nbytes, &fdst->msg, fdst->sparse);
-        if (ret < 0)
+        if (ret < 0) {
+            VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    VIR_WARNINGS_RESET
+                        ret = -2;
+                }
             goto cleanup;
+        }
         fdst->msgOffset = 0;
+    } else {
+        ret = fdst->msg->data.buf.buflen;
     }
 
     /* Shouldn't happen (TM) */
