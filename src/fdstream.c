@@ -540,7 +540,14 @@ virFDStreamSkip(virStreamPtr st,
         goto cleanup;
     }
 
-    ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
+    if (fdst->msg) {
+        ret = fdst->msg->data.length;
+        iohelperFree(fdst->msg);
+        fdst->msg = NULL;
+        fdst->msgOffset = 0;
+    } else {
+        ret = iohelperWrite(NULL, fdst->fd, &msg, fdst->sparse);
+    }
 
  cleanup:
     virMutexUnlock(&fdst->lock);

@@ -252,6 +252,7 @@ runIOFormatted(const char *path,
         formattedIN = formatted;
 
     while (1) {
+        bool quit = false;
         size_t buflen = 64 * 1024;
 
         if (length && (length + buflen) > total)
@@ -261,6 +262,21 @@ runIOFormatted(const char *path,
 
         if (iohelperRead(fdinname, fdin, buflen, &msg, formattedIN) < 0)
             goto cleanup;
+
+        switch ((iohelperMessageType) msg->type) {
+        case IOHELPER_MESSAGE_DATA:
+            quit = !msg->data.buf.buflen;
+            total += msg->data.buf.buflen;
+            break;
+
+        case IOHELPER_MESSAGE_HOLE:
+            quit = !msg->data.length;
+            total += msg->data.length;
+            break;
+        }
+
+        if (quit)
+            break;
 
         if (iohelperWrite(fdoutname, fdout, msg, formattedOUT) < 0)
             goto cleanup;
