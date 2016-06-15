@@ -65,6 +65,7 @@ src/hyperv/hyperv_wmi.c
 src/interface/interface_backend_netcf.c
 src/interface/interface_backend_udev.c
 src/internal.h
+src/iohelper/iohelper.c
 src/libvirt-admin.c
 src/libvirt-domain-snapshot.c
 src/libvirt-domain.c
@@ -177,7 +178,6 @@ src/storage/storage_driver.c
 src/test/test_driver.c
 src/uml/uml_conf.c
 src/uml/uml_driver.c
-src/util/iohelper.c
 src/util/viralloc.c
 src/util/viraudit.c
 src/util/virauth.c

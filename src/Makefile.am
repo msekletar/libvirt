@@ -1003,8 +1003,8 @@ STORAGE_DRIVER_ZFS_SOURCES =					\
 STORAGE_HELPER_DISK_SOURCES =					\
 		storage/parthelper.c
 
-UTIL_IO_HELPER_SOURCES =					\
-		util/iohelper.c
+IO_HELPER_SOURCES =								\
+		iohelper/iohelper.c
 
 NETWORK_LEASES_HELPER_SOURCES =                                 \
                network/leaseshelper.c
@@ -2840,7 +2840,7 @@ libexec_PROGRAMS =
 
 if WITH_LIBVIRTD
 libexec_PROGRAMS += libvirt_iohelper
-libvirt_iohelper_SOURCES = $(UTIL_IO_HELPER_SOURCES)
+libvirt_iohelper_SOURCES = $(IO_HELPER_SOURCES)
 libvirt_iohelper_LDFLAGS = \
 		$(AM_LDFLAGS) \
 		$(PIE_LDFLAGS) \
