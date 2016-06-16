@@ -44,6 +44,7 @@
 #include "virstring.h"
 #include "virtime.h"
 #include "virprocess.h"
+#include "iohelper_message.h"
 
 #define VIR_FROM_THIS VIR_FROM_STREAMS
 
@@ -61,6 +62,7 @@ struct virFDStreamData {
     unsigned long long offset;
     unsigned long long length;
     bool formatted;     /* True if formatted messages are read from/written to @fd. */
+    iohelperCtlPtr ioCtl;
 
     int watch;
     int events;         /* events the stream callback is subscribed for */
@@ -89,7 +91,7 @@ virFDStreamDataDispose(void *obj)
 {
     virFDStreamDataPtr fdst = obj;
 
-    VIR_DEBUG("obj=%p", fdst);
+    virObjectUnref(fdst->ioCtl);
 }
 
 static int virFDStreamDataOnceInit(void)
@@ -405,9 +407,7 @@ virFDStreamWriteInternal(virFDStreamDataPtr fdst,
                          size_t nbytes)
 {
     if (fdst->formatted) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("sparse stream not supported"));
-        return -1;
+        return iohelperWrite(fdst->ioCtl, bytes, nbytes);
     } else {
         return write(fdst->fd, bytes, nbytes);
     }
@@ -474,9 +474,7 @@ virFDStreamReadInternal(virFDStreamDataPtr fdst,
                         size_t nbytes)
 {
     if (fdst->formatted) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("sparse stream not supported"));
-        return -1;
+        return iohelperRead(fdst->ioCtl, bytes, nbytes);
     } else {
         return read(fdst->fd, bytes, nbytes);
     }
@@ -541,9 +539,7 @@ virFDStreamSkipInternal(virFDStreamDataPtr fdst,
 {
     off_t off;
     if (fdst->formatted) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("sparse stream not supported"));
-        return -1;
+        return iohelperSkip(fdst->ioCtl, length);
     } else {
         off = lseek(fdst->fd, length, SEEK_CUR);
         return off == (off_t) -1 ? -1 : 0;
@@ -586,9 +582,7 @@ virFDStreamInDataInternal(virFDStreamDataPtr fdst,
                           unsigned long long *length)
 {
     if (fdst->formatted) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("sparse stream not supported"));
-        return -1;
+        return iohelperInData(fdst->ioCtl, inData, length);
     } else {
         return virFileInData(fdst->fd, inData, length);
     }
@@ -651,11 +645,18 @@ static int virFDStreamOpenInternal(virStreamPtr st,
     fdst->errfd = errfd;
     fdst->length = length;
     fdst->formatted = formatted;
+    if (formatted &&
+        !(fdst->ioCtl = iohelperCtlNew(fd)))
+        goto error;
+
 
     st->driver = &virFDStreamDrv;
     st->privateData = fdst;
-
     return 0;
+
+ error:
+    virObjectUnref(fdst);
+    return -1;
 }
 
 

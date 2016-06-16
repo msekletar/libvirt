@@ -23,4 +23,30 @@
 #ifndef __VIR_IOHELPER_MESSAGE_H__
 # define __VIR_IOHELPER_MESSAGE_H__
 
+# include "internal.h"
+
+typedef struct iohelperCtl iohelperCtl;
+typedef iohelperCtl *iohelperCtlPtr;
+
+iohelperCtlPtr iohelperCtlNew(int fd);
+
+ssize_t
+iohelperRead(iohelperCtlPtr ctl,
+             char *bytes,
+             size_t nbytes);
+
+ssize_t
+iohelperWrite(iohelperCtlPtr ctl,
+              const char *bytes,
+              size_t nbytes);
+
+int
+iohelperSkip(iohelperCtlPtr ctl,
+             unsigned long long length);
+
+int
+iohelperInData(iohelperCtlPtr ctl,
+               int *inData,
+               unsigned long long *length);
+
 #endif /* __VIR_IOHELPER_H__ */
