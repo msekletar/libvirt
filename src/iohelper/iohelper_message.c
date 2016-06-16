@@ -162,3 +162,42 @@ iohelperWriteBuf(iohelperCtlPtr ctl,
     msg->bufferOffset += nwritten;
     return nwritten;
 }
+
+
+ssize_t
+iohelperReadAsync(iohelperCtlPtr ctl)
+{
+    virNetMessagePtr msg = ctl->msg;
+    size_t want = msg->bufferLength - msg->bufferOffset;
+    ssize_t nread;
+
+
+
+ retry:
+    nread = read(ctl->fd,
+                 msg->buffer + msg->bufferOffset,
+                 want);
+    if (nread < 0) {
+        if (errno == EAGAIN) {
+            return 0;
+        } else if (errno == EINTR) {
+            goto retry;
+        }
+        virReportSystemError(errno, "%s",
+                             _("cannot read from stream"));
+
+        return -1;
+    }
+
+    msg->bufferOffset += nread;
+    return nread;
+}
+
+
+bool
+iohelperReadAsyncCompleted(iohelperCtlPtr ctl)
+{
+    virNetMessagePtr msg = ctl->msg;
+
+    return msg->bufferLength == msg->bufferOffset;
+}
