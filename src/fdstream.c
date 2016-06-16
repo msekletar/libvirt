@@ -399,6 +399,21 @@ virFDStreamAbort(virStreamPtr st)
     return virFDStreamCloseInt(st, true);
 }
 
+static ssize_t
+virFDStreamWriteInternal(virFDStreamDataPtr fdst,
+                         const char *bytes,
+                         size_t nbytes)
+{
+    if (fdst->formatted) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("sparse stream not supported"));
+        return -1;
+    } else {
+        return write(fdst->fd, bytes, nbytes);
+    }
+}
+
+
 static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
 {
     virFDStreamDataPtr fdst = st->privateData;
@@ -431,7 +446,7 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
     }
 
  retry:
-    ret = write(fdst->fd, bytes, nbytes);
+    ret = virFDStreamWriteInternal(fdst, bytes, nbytes);
     if (ret < 0) {
         VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -450,6 +465,21 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
 
     virObjectUnlock(fdst);
     return ret;
+}
+
+
+static ssize_t
+virFDStreamReadInternal(virFDStreamDataPtr fdst,
+                        char *bytes,
+                        size_t nbytes)
+{
+    if (fdst->formatted) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("sparse stream not supported"));
+        return -1;
+    } else {
+        return read(fdst->fd, bytes, nbytes);
+    }
 }
 
 
@@ -483,7 +513,7 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
     }
 
  retry:
-    ret = read(fdst->fd, bytes, nbytes);
+    ret = virFDStreamReadInternal(fdst, bytes, nbytes);
     if (ret < 0) {
         VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -506,11 +536,26 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 
 
 static int
+virFDStreamSkipInternal(virFDStreamDataPtr fdst,
+                        unsigned long long length)
+{
+    off_t off;
+    if (fdst->formatted) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("sparse stream not supported"));
+        return -1;
+    } else {
+        off = lseek(fdst->fd, length, SEEK_CUR);
+        return off == (off_t) -1 ? -1 : 0;
+    }
+}
+
+
+static int
 virFDStreamSkip(virStreamPtr st,
                 unsigned long long length)
 {
     virFDStreamDataPtr fdst = st->privateData;
-    off_t off;
     int ret = -1;
 
     virObjectLock(fdst);
@@ -520,19 +565,33 @@ virFDStreamSkip(virStreamPtr st,
                                  _("cannot write to stream"));
             goto cleanup;
         }
-        fdst->offset += length;
     }
 
-    off = lseek(fdst->fd, length, SEEK_CUR);
-    if (off == (off_t) -1) {
-        virReportSystemError(errno, "%s",
-                             _("unable to seek"));
+    if (virFDStreamSkipInternal(fdst, length) < 0)
         goto cleanup;
-    }
+
+    if (fdst->length)
+        fdst->offset += length;
     ret = 0;
  cleanup:
     virObjectUnlock(fdst);
     return ret;
+}
+
+
+
+static int
+virFDStreamInDataInternal(virFDStreamDataPtr fdst,
+                          int *inData,
+                          unsigned long long *length)
+{
+    if (fdst->formatted) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("sparse stream not supported"));
+        return -1;
+    } else {
+        return virFileInData(fdst->fd, inData, length);
+    }
 }
 
 
@@ -545,7 +604,7 @@ virFDStreamInData(virStreamPtr st,
     int ret = -1;
 
     virObjectLock(fdst);
-    ret = virFileInData(fdst->fd, inData, length);
+    ret = virFDStreamInDataInternal(fdst, inData, length);
     virObjectUnlock(fdst);
     return ret;
 }
