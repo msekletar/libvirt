@@ -60,6 +60,7 @@ struct virFDStreamData {
     virCommandPtr cmd;
     unsigned long long offset;
     unsigned long long length;
+    bool formatted;     /* True if formatted messages are read from/written to @fd. */
 
     int watch;
     int events;         /* events the stream callback is subscribed for */
@@ -566,7 +567,8 @@ static int virFDStreamOpenInternal(virStreamPtr st,
                                    int fd,
                                    virCommandPtr cmd,
                                    int errfd,
-                                   unsigned long long length)
+                                   unsigned long long length,
+                                   bool formatted)
 {
     virFDStreamDataPtr fdst;
 
@@ -589,6 +591,7 @@ static int virFDStreamOpenInternal(virStreamPtr st,
     fdst->cmd = cmd;
     fdst->errfd = errfd;
     fdst->length = length;
+    fdst->formatted = formatted;
 
     st->driver = &virFDStreamDrv;
     st->privateData = fdst;
@@ -600,7 +603,7 @@ static int virFDStreamOpenInternal(virStreamPtr st,
 int virFDStreamOpen(virStreamPtr st,
                     int fd)
 {
-    return virFDStreamOpenInternal(st, fd, NULL, -1, 0);
+    return virFDStreamOpenInternal(st, fd, NULL, -1, 0, false);
 }
 
 
@@ -646,7 +649,7 @@ int virFDStreamConnectUNIX(virStreamPtr st,
         goto error;
     }
 
-    if (virFDStreamOpenInternal(st, fd, NULL, -1, 0) < 0)
+    if (virFDStreamOpenInternal(st, fd, NULL, -1, 0, false) < 0)
         goto error;
     return 0;
 
@@ -672,7 +675,8 @@ virFDStreamOpenFileInternal(virStreamPtr st,
                             unsigned long long length,
                             int oflags,
                             int mode,
-                            bool forceIOHelper)
+                            bool forceIOHelper,
+                            bool sparse)
 {
     int fd = -1;
     int childfd = -1;
@@ -680,6 +684,7 @@ virFDStreamOpenFileInternal(virStreamPtr st,
     virCommandPtr cmd = NULL;
     int errfd = -1;
     char *iohelper_path = NULL;
+    bool formatted = false;
 
     VIR_DEBUG("st=%p path=%s oflags=%x offset=%llu length=%llu mode=%o",
               st, path, oflags, offset, length, mode);
@@ -750,6 +755,10 @@ virFDStreamOpenFileInternal(virStreamPtr st,
         virCommandPassFD(cmd, fd,
                          VIR_COMMAND_PASS_FD_CLOSE_PARENT);
         virCommandAddArgFormat(cmd, "%d", fd);
+        if (sparse) {
+            virCommandAddArg(cmd, "sparse");
+            formatted = true;
+        }
 
         if ((oflags & O_ACCMODE) == O_RDONLY) {
             childfd = fds[1];
@@ -768,7 +777,7 @@ virFDStreamOpenFileInternal(virStreamPtr st,
         VIR_FORCE_CLOSE(childfd);
     }
 
-    if (virFDStreamOpenInternal(st, fd, cmd, errfd, length) < 0)
+    if (virFDStreamOpenInternal(st, fd, cmd, errfd, length, formatted) < 0)
         goto error;
 
     return 0;
@@ -798,7 +807,7 @@ int virFDStreamOpenFile(virStreamPtr st,
     }
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags, 0, false);
+                                       oflags, 0, false, false);
 }
 
 int virFDStreamCreateFile(virStreamPtr st,
@@ -811,7 +820,7 @@ int virFDStreamCreateFile(virStreamPtr st,
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
                                        oflags | O_CREAT, mode,
-                                       false);
+                                       false, false);
 }
 
 #ifdef HAVE_CFMAKERAW
@@ -827,7 +836,7 @@ int virFDStreamOpenPTY(virStreamPtr st,
     if (virFDStreamOpenFileInternal(st, path,
                                     offset, length,
                                     oflags | O_CREAT, 0,
-                                    false) < 0)
+                                    false, false) < 0)
         return -1;
 
     fdst = st->privateData;
@@ -864,7 +873,7 @@ int virFDStreamOpenPTY(virStreamPtr st,
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
                                        oflags | O_CREAT, 0,
-                                       false);
+                                       false, false);
 }
 #endif /* !HAVE_CFMAKERAW */
 
@@ -872,11 +881,12 @@ int virFDStreamOpenBlockDevice(virStreamPtr st,
                                const char *path,
                                unsigned long long offset,
                                unsigned long long length,
-                               int oflags)
+                               int oflags,
+                               bool sparse)
 {
     return virFDStreamOpenFileInternal(st, path,
                                        offset, length,
-                                       oflags, 0, true);
+                                       oflags, 0, true, sparse);
 }
 
 int virFDStreamSetInternalCloseCb(virStreamPtr st,
