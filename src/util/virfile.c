@@ -3501,3 +3501,73 @@ int virFileIsSharedFS(const char *path)
                                  VIR_FILE_SHFS_SMB |
                                  VIR_FILE_SHFS_CIFS);
 }
+
+
+int virFileInData(int fd,
+                  int *inData,
+                  unsigned long long *length)
+{
+    int ret = -1;
+    off_t cur, data, hole;
+
+    /* Get current position */
+    cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t) -1) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to get current position in file"));
+        goto cleanup;
+    }
+
+    /* Now try to get data and hole offsets */
+    data = lseek(fd, cur, SEEK_DATA);
+
+    /* There are four options:
+     * 1) data == cur;  @cur is in data
+     * 2) data > cur; @cur is in a hole, next data at @data
+     * 3) data < 0, errno = ENXIO; either @cur is in trailing hole, or @cur is beyond EOF.
+     * 4) data < 0, errno != ENXIO; we learned nothing
+     */
+
+    if (data == (off_t) -1) {
+        /* cases 3 and 4 */
+        if (errno != ENXIO) {
+            virReportSystemError(errno, "%s",
+                                 _("Unable to seek to data"));
+            goto cleanup;
+        }
+        *inData = 0;
+        *length = 0;
+    } else if (data > cur) {
+        /* case 2 */
+        *inData = 0;
+        *length = data - cur;
+    } else {
+        /* case 1 */
+        *inData = 1;
+
+        /* We don't know where does the next hole start. Let's
+         * find out. Here we get the same 4 possibilities as
+         * described above.*/
+        hole = lseek(fd, data, SEEK_HOLE);
+        if (hole == (off_t) -1 || hole == data) {
+            /* cases 1, 3 and 4 */
+            /* Wait a second. The reason why we are here is
+             * because we are in data. But at the same time we
+             * are in a trailing hole? Wut!? Do the best what we
+             * can do here. */
+            virReportSystemError(errno, "%s",
+                                 _("unable to seek to hole"));
+            goto cleanup;
+        } else {
+            /* case 2 */
+            *length = (hole - data);
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    /* At any rate, reposition back to where we started. */
+    if (cur != (off_t) -1)
+        ignore_value(lseek(fd, cur, SEEK_SET));
+    return ret;
+}

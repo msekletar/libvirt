@@ -307,4 +307,8 @@ int virFileGetHugepageSize(const char *path,
                            unsigned long long *size);
 int virFileFindHugeTLBFS(virHugeTLBFSPtr *ret_fs,
                          size_t *ret_nfs);
+
+int virFileInData(int fd,
+                  int *inData,
+                  unsigned long long *length);
 #endif /* __VIR_FILE_H */
