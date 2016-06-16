@@ -646,7 +646,7 @@ static int virFDStreamOpenInternal(virStreamPtr st,
     fdst->length = length;
     fdst->formatted = formatted;
     if (formatted &&
-        !(fdst->ioCtl = iohelperCtlNew(fd)))
+        !(fdst->ioCtl = iohelperCtlNew(fd, false)))
         goto error;
 
 

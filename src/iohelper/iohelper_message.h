@@ -28,7 +28,8 @@
 typedef struct iohelperCtl iohelperCtl;
 typedef iohelperCtl *iohelperCtlPtr;
 
-iohelperCtlPtr iohelperCtlNew(int fd);
+iohelperCtlPtr iohelperCtlNew(int fd,
+                              bool blocking);
 
 ssize_t
 iohelperRead(iohelperCtlPtr ctl,
