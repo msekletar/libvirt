@@ -33,6 +33,7 @@
 struct _iohelperCtl {
     int fd;             /* FD used for read/write */
     virNetMessagePtr msg;
+    size_t recvOffset;
 };
 
 iohelperCtlPtr
@@ -74,6 +75,15 @@ iohelperCtlGetFD(iohelperCtlPtr ctl)
 }
 
 
+
+static void
+iohelperMessageClear(iohelperCtlPtr ctl)
+{
+    virNetMessageClear(ctl->msg);
+    ctl->recvOffset = 0;
+}
+
+
 static int
 readOne(iohelperCtlPtr ctl,
         size_t len)
@@ -87,13 +97,13 @@ readOne(iohelperCtlPtr ctl,
         return 0;
     }
 
-    virNetMessageClear(msg);
+    iohelperMessageClear(ctl);
     if (VIR_REALLOC_N(msg->buffer, len) < 0)
         return -1;
 
     nread = saferead(ctl->fd, msg->buffer, len);
     if (nread < 0) {
-        virNetMessageClear(msg);
+        iohelperMessageClear(ctl);
         virReportSystemError(errno, "%s", _("Unable to read from stream"));
         return -1;
     }
@@ -125,7 +135,7 @@ iohelperReadBuf(iohelperCtlPtr ctl,
     msg->bufferOffset += want;
 
     if (msg->bufferOffset == msg->bufferLength)
-        virNetMessageClear(msg);
+        iohelperMessageClear(ctl);
 
     return want;
 }
@@ -168,14 +178,20 @@ ssize_t
 iohelperReadAsync(iohelperCtlPtr ctl)
 {
     virNetMessagePtr msg = ctl->msg;
-    size_t want = msg->bufferLength - msg->bufferOffset;
+    size_t want;
     ssize_t nread;
 
+    if (!msg->bufferLength) {
+        if (VIR_REALLOC_N(msg->buffer, 1024 * 1024) < 0)
+            return -1;
+        msg->bufferLength = 1024 * 1024;
+        ctl->recvOffset = 0;
+    }
 
-
+    want = msg->bufferLength - ctl->recvOffset;
  retry:
     nread = read(ctl->fd,
-                 msg->buffer + msg->bufferOffset,
+                 msg->buffer + ctl->recvOffset,
                  want);
     if (nread < 0) {
         if (errno == EAGAIN) {
@@ -189,7 +205,6 @@ iohelperReadAsync(iohelperCtlPtr ctl)
         return -1;
     }
 
-    msg->bufferOffset += nread;
     return nread;
 }
 
@@ -197,7 +212,5 @@ iohelperReadAsync(iohelperCtlPtr ctl)
 bool
 iohelperReadAsyncCompleted(iohelperCtlPtr ctl)
 {
-    virNetMessagePtr msg = ctl->msg;
-
-    return msg->bufferLength == msg->bufferOffset;
+    return ctl->recvOffset == ctl->msg->bufferOffset;
 }

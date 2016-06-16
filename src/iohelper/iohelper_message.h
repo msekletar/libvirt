@@ -40,4 +40,9 @@ iohelperWriteBuf(iohelperCtlPtr ctl,
                  const char *buf,
                  size_t len);
 
+ssize_t
+iohelperReadAsync(iohelperCtlPtr ctl);
+
+bool
+iohelperReadAsyncCompleted(iohelperCtlPtr ctl);
 #endif /* __VIR_IOHELPER_H__ */
