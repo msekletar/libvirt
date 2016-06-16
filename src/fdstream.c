@@ -44,6 +44,7 @@
 #include "virstring.h"
 #include "virtime.h"
 #include "virprocess.h"
+#include "iohelper_message.h"
 
 #define VIR_FROM_THIS VIR_FROM_STREAMS
 
@@ -51,7 +52,7 @@ VIR_LOG_INIT("fdstream");
 
 /* Tunnelled migration stream support */
 struct virFDStreamData {
-    int fd;
+    iohelperCtlPtr ioctl;
     int errfd;
     virCommandPtr cmd;
     unsigned long long offset;
@@ -216,7 +217,7 @@ virFDStreamAddCallback(virStreamPtr st,
         goto cleanup;
     }
 
-    if ((fdst->watch = virEventAddHandle(fdst->fd,
+    if ((fdst->watch = virEventAddHandle(iohelperCtlGetFD(fdst->ioctl),
                                          events,
                                          virFDStreamEvent,
                                          st,
@@ -299,6 +300,7 @@ virFDStreamCloseInt(virStreamPtr st, bool streamAbort)
     virStreamEventCallback cb;
     void *opaque;
     int ret;
+    int fd;
 
     VIR_DEBUG("st=%p", st);
 
@@ -335,9 +337,11 @@ virFDStreamCloseInt(virStreamPtr st, bool streamAbort)
     }
 
     /* mutex locked */
-    ret = VIR_CLOSE(fdst->fd);
+    fd = iohelperCtlGetFD(fdst->ioctl);
+    ret = VIR_CLOSE(fd);
     if (virFDStreamCloseCommand(fdst, streamAbort) < 0)
         ret = -1;
+    iohelperCtlFree(fdst->ioctl);
 
     if (VIR_CLOSE(fdst->errfd) < 0)
         VIR_DEBUG("ignoring failed close on fd %d", fdst->errfd);
@@ -408,7 +412,7 @@ static int virFDStreamWrite(virStreamPtr st, const char *bytes, size_t nbytes)
     }
 
  retry:
-    ret = write(fdst->fd, bytes, nbytes);
+    ret = iohelperWriteBuf(fdst->ioctl, bytes, nbytes);
     if (ret < 0) {
         VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -460,7 +464,7 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
     }
 
  retry:
-    ret = read(fdst->fd, bytes, nbytes);
+    ret = iohelperReadBuf(fdst->ioctl, bytes, nbytes);
     if (ret < 0) {
         VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -489,6 +493,7 @@ virFDStreamSkip(virStreamPtr st,
     struct virFDStreamData *fdst = st->privateData;
     off_t off;
     int ret = -1;
+    int fd;
 
     virMutexLock(&fdst->lock);
     if (fdst->length) {
@@ -500,7 +505,9 @@ virFDStreamSkip(virStreamPtr st,
         fdst->offset += length;
     }
 
-    off = lseek(fdst->fd, length, SEEK_CUR);
+    fd = iohelperCtlGetFD(fdst->ioctl);
+
+    off = lseek(fd, length, SEEK_CUR);
     if (off == (off_t) -1) {
         virReportSystemError(errno, "%s",
                              _("unable to seek"));
@@ -525,7 +532,7 @@ virFDStreamInData(virStreamPtr st,
 
     virMutexLock(&fdst->lock);
 
-    fd = fdst->fd;
+    fd = iohelperCtlGetFD(fdst->ioctl);
 
     /* Get current position */
     cur = lseek(fd, 0, SEEK_CUR);
@@ -623,7 +630,10 @@ static int virFDStreamOpenInternal(virStreamPtr st,
     if (VIR_ALLOC(fdst) < 0)
         return -1;
 
-    fdst->fd = fd;
+    if (!(fdst->ioctl = iohelperCtlNew(fd))) {
+        VIR_FREE(fdst);
+        return -1;
+    }
     fdst->cmd = cmd;
     fdst->errfd = errfd;
     fdst->length = length;
@@ -865,8 +875,8 @@ int virFDStreamOpenPTY(virStreamPtr st,
                        unsigned long long length,
                        int oflags)
 {
-    struct virFDStreamData *fdst = NULL;
     struct termios rawattr;
+    int fd;
 
     if (virFDStreamOpenFileInternal(st, path,
                                     offset, length,
@@ -874,9 +884,9 @@ int virFDStreamOpenPTY(virStreamPtr st,
                                     false) < 0)
         return -1;
 
-    fdst = st->privateData;
+    fd = iohelperCtlGetFD(st->privateData);
 
-    if (tcgetattr(fdst->fd, &rawattr) < 0) {
+    if (tcgetattr(fd, &rawattr) < 0) {
         virReportSystemError(errno,
                              _("unable to get tty attributes: %s"),
                              path);
@@ -885,7 +895,7 @@ int virFDStreamOpenPTY(virStreamPtr st,
 
     cfmakeraw(&rawattr);
 
-    if (tcsetattr(fdst->fd, TCSANOW, &rawattr) < 0) {
+    if (tcsetattr(fd, TCSANOW, &rawattr) < 0) {
         virReportSystemError(errno,
                              _("unable to set tty attributes: %s"),
                              path);

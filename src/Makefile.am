@@ -1180,9 +1180,11 @@ libvirt_driver_la_SOURCES = $(DRIVER_SOURCES)
 
 libvirt_driver_la_CFLAGS = \
 		$(GNUTLS_CFLAGS) $(CURL_CFLAGS) $(XDR_CFLAGS) \
-		-I$(srcdir)/conf $(AM_CFLAGS)
+		-I$(srcdir)/conf -I$(srcdir)/iohelper \
+		$(AM_CFLAGS)
 libvirt_driver_la_LIBADD = \
-		$(GNUTLS_LIBS) $(CURL_LIBS) $(DLOPEN_LIBS)
+		$(GNUTLS_LIBS) $(CURL_LIBS) $(DLOPEN_LIBS) \
+		libvirt-iohelper.la
 
 # All .syms files should be placed in exactly one of these three lists,
 # depending on whether they are stored in git and/or used in the build.
