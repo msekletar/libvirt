@@ -380,7 +380,8 @@ if WITH_LIBVIRTD
 test_scripts += $(libvirtd_test_scripts)
 
 test_programs += 			\
-	eventtest
+	eventtest			\
+	iohelpermessagetest
 else ! WITH_LIBVIRTD
 EXTRA_DIST += $(libvirtd_test_scripts)
 endif ! WITH_LIBVIRTD
@@ -1311,6 +1312,13 @@ if WITH_LIBVIRTD
 eventtest_SOURCES = \
 	eventtest.c testutils.h testutils.c
 eventtest_LDADD = -lrt $(LDADDS)
+
+iohelpermessagetest_SOURCES = \
+	iohelpermessagetest.c testutils.h testutils.c
+iohelpermessagetest_CFLAGS = \
+	$(AM_CFLAGS) -I$(top_srcdir)/src/iohelper
+iohelpermessagetest_LDADD = \
+	$(LDADDS) ../src/libvirt-iohelper.la
 endif WITH_LIBVIRTD
 
 libshunload_la_SOURCES = shunloadhelper.c
