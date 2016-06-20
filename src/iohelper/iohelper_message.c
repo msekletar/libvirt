@@ -40,6 +40,7 @@ struct iohelperCtl {
     virNetMessagePtr msg;
     bool msgReadyRead;
     bool msgReadyWrite;
+    unsigned long long skipLength;
 };
 
 typedef ssize_t (*readfunc)(int fd, void *buf, size_t count);
@@ -122,18 +123,19 @@ messageRecv(iohelperCtlPtr ctl)
 {
     virNetMessagePtr msg = ctl->msg;
     readfunc readF = ctl->blocking ? saferead : read;
+    virNetStreamSkip data;
 
     ctl->msgReadyRead = false;
-
-    if (!msg->bufferLength) {
-        msg->bufferLength = 4;
-        if (VIR_ALLOC_N(msg->buffer, msg->bufferLength) < 0)
-            return -1;
-    }
 
     while (true) {
         ssize_t nread;
         size_t want;
+
+        if (!msg->bufferLength) {
+            msg->bufferLength = 4;
+            if (VIR_ALLOC_N(msg->buffer, msg->bufferLength) < 0)
+                return -1;
+        }
 
         want = msg->bufferLength - msg->bufferOffset;
 
@@ -164,7 +166,17 @@ messageRecv(iohelperCtlPtr ctl)
                 if (virNetMessageDecodeHeader(msg) < 0)
                     return -1;
 
-                /* Here we would decode the payload someday */
+                if (msg->header.type == VIR_NET_STREAM_SKIP) {
+                    if (virNetMessageDecodePayload(msg,
+                                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                                   &data) < 0) {
+                        return -1;
+                    }
+
+                    ctl->skipLength += data.length;
+                    messageClear(ctl);
+                    continue;
+                }
 
                 ctl->msgReadyRead = true;
                 return msg->bufferLength - msg->bufferOffset;
@@ -237,6 +249,12 @@ iohelperRead(iohelperCtlPtr ctl,
             errno = EAGAIN;
             return -1;
         }
+    }
+
+    /* Should never happen, but things change. */
+    if (msg->header.type != VIR_NET_STREAM) {
+        errno = EAGAIN;
+        return -1;
     }
 
     if (want > msg->bufferLength - msg->bufferOffset)
@@ -312,21 +330,100 @@ iohelperWrite(iohelperCtlPtr ctl,
 
 
 int
-iohelperSkip(iohelperCtlPtr ctl ATTRIBUTE_UNUSED,
-             unsigned long long length ATTRIBUTE_UNUSED)
+iohelperSkip(iohelperCtlPtr ctl,
+             unsigned long long length)
 {
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("sparse stream not supported"));
+    virNetMessagePtr msg = ctl->msg;
+    virNetStreamSkip data;
+
+    if (messageReadyRead(ctl)) {
+        /* This stream is used for reading. */
+        return 0;
+    }
+
+    if (!messageReadyWrite(ctl)) {
+        ssize_t nwritten;
+        /* Okay, the outgoing message is not fully sent. Try to
+         * finish the sending and recheck. */
+        if ((nwritten = messageSend(ctl)) < 0)
+            return -1;
+
+        if (!nwritten && errno != EAGAIN)
+            return 0;
+
+        if (!messageReadyWrite(ctl)) {
+            errno = EAGAIN;
+            return -2;
+        }
+    }
+
+    memset(&msg->header, 0, sizeof(msg->header));
+    msg->header.type = VIR_NET_STREAM_SKIP;
+    msg->header.status = VIR_NET_CONTINUE;
+
+    memset(&data, 0, sizeof(data));
+    data.length = length;
+
+    /* Encoding a message is fatal and we should discard any
+     * partially encoded message. */
+    if (virNetMessageEncodeHeader(msg) < 0)
+        goto error;
+
+    if (virNetMessageEncodePayload(msg,
+                                   (xdrproc_t) xdr_virNetStreamSkip,
+                                   &data) < 0)
+        goto error;
+
+    /* At this point, the message is successfully encoded. Don't
+     * discard it if something below fails. */
+    if (messageSend(ctl) < 0)
+        return -1;
+
+    return 0;
+
+ error:
+    messageClear(ctl);
     return -1;
 }
 
 
 int
-iohelperInData(iohelperCtlPtr ctl ATTRIBUTE_UNUSED,
-               int *inData ATTRIBUTE_UNUSED,
-               unsigned long long *length ATTRIBUTE_UNUSED)
+iohelperInData(iohelperCtlPtr ctl,
+               int *inData,
+               unsigned long long *length)
 {
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("sparse stream not supported"));
-    return -1;
+    virNetMessagePtr msg;
+
+    /* Make sure we have a message waiting in the queue. */
+
+    if (!messageReadyRead(ctl)) {
+        ssize_t nread;
+        /* Okay, the incoming message is not fully read. Try to
+         * finish its receiving and recheck. */
+        if ((nread = messageRecv(ctl)) < 0)
+            return -1;
+
+        if (!nread && errno != EAGAIN) {
+            /* EOF */
+            *inData = *length = 0;
+            return 0;
+        }
+
+        if (!messageReadyRead(ctl)) {
+            errno = EAGAIN;
+            return -2;
+        }
+    }
+
+    if (ctl->skipLength) {
+        *inData = 0;
+        *length = ctl->skipLength;
+        ctl->skipLength = 0;
+    } else {
+        msg = ctl->msg;
+        *inData = 1;
+        *length = msg->bufferLength - msg->bufferOffset;
+    }
+
+    return 0;
 }

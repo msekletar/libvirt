@@ -1318,7 +1318,7 @@ iohelpermessagetest_SOURCES = \
 iohelpermessagetest_CFLAGS = \
 	$(AM_CFLAGS) -I$(top_srcdir)/src/iohelper
 iohelpermessagetest_LDADD = \
-	$(LDADDS) ../src/libvirt-iohelper.la
+	$(LDADDS) ../src/libvirt-iohelper.la ../src/libvirt-net-rpc.la
 endif WITH_LIBVIRTD
 
 libshunload_la_SOURCES = shunloadhelper.c

@@ -491,6 +491,7 @@ virStreamHoleSize(virStreamPtr stream,
  * and return 0.
  *
  * Returns 0 on success,
+ *        -2 if unable to determine yet,
  *        -1 otherwise
  */
 int

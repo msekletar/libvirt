@@ -833,14 +833,19 @@ daemonStreamHandleRead(virNetServerClientPtr client,
         VIR_DEBUG("rv=%d inData=%d length=%llu", rv, inData, length);
 
         if (rv < 0) {
-            if (virNetServerProgramSendStreamError(remoteProgram,
-                                                   client,
-                                                   msg,
-                                                   &rerr,
-                                                   stream->procedure,
-                                                   stream->serial) < 0)
-                goto cleanup;
-            msg = NULL;
+            if (rv == -2) {
+                /* Unable to determine yet. Claim success. */
+            } else {
+                /* Proper error. */
+                if (virNetServerProgramSendStreamError(remoteProgram,
+                                                       client,
+                                                       msg,
+                                                       &rerr,
+                                                       stream->procedure,
+                                                       stream->serial) < 0)
+                    goto cleanup;
+                msg = NULL;
+            }
 
             /* We're done with this call */
             goto done;
