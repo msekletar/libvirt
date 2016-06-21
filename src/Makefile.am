@@ -2864,6 +2864,8 @@ libvirt_iohelper_LDFLAGS = \
 		$(NULL)
 libvirt_iohelper_LDADD =		\
 		libvirt_util.la		\
+		libvirt-iohelper.la	\
+		libvirt-net-rpc.la	\
 		../gnulib/lib/libgnu.la
 if WITH_DTRACE_PROBES
 libvirt_iohelper_LDADD += libvirt_probes.lo

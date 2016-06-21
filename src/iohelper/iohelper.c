@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "iohelper_message.h"
 #include "virutil.h"
 #include "virthread.h"
 #include "virfile.h"
@@ -40,6 +41,7 @@
 #include "virrandom.h"
 #include "virstring.h"
 #include "virgettext.h"
+#include "virobject.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -228,6 +230,114 @@ runIOBasic(const char *path, int fd, int oflags, unsigned long long length)
 
 
 static int
+runIOFormatted(const char *path,
+               int fd,
+               int oflags,
+               unsigned long long length)
+{
+    int ret = -1;
+    int fdin, fdout;
+    const char *fdinname, *fdoutname;
+    unsigned long long total = 0;
+    iohelperCtlPtr ioCtl = NULL;
+    char *buf = NULL;
+    size_t bufLen = 1024 * 1024;
+    bool formattedIN, formattedOUT;
+
+    if (VIR_ALLOC_N(buf, bufLen) < 0)
+        goto cleanup;
+
+    if (setupFDs(path, fd, oflags,
+                 &fdin, &fdinname,
+                 &fdout, &fdoutname) < 0)
+        goto cleanup;
+
+    /* Maybe this looks a bit silly. But it's simple. Either we
+     * are reading from @fd and writing to stdout, or we're
+     * reading from stdin and writing to @fd. But the formatted
+     * messages occurs just on std* not @fd. */
+    formattedIN = fdout == fd;
+    formattedOUT = fdin == fd;
+
+    if (!(ioCtl = iohelperCtlNew(formattedIN ? fdin : fdout, true)))
+        goto cleanup;
+
+    while (true) {
+        ssize_t nread, nwritten, want = bufLen;
+        int inData = 1;
+        unsigned long long sectionLength;
+
+        if (formattedOUT) {
+            if (virFileInData(fdin, &inData, &sectionLength) < 0)
+                goto cleanup;
+
+            if (!inData) {
+                if (iohelperSkip(ioCtl, sectionLength) < 0)
+                    goto cleanup;
+                if (!sectionLength)
+                    break;
+                if (lseek(fdin, sectionLength, SEEK_CUR) == (off_t) -1) {
+                    virReportSystemError(errno,
+                                         _("Unable to seek in %s"), fdoutname);
+                    goto cleanup;
+                }
+                continue;
+            } else {
+                want = MIN(sectionLength, bufLen);
+            }
+        } else {
+            if (iohelperInData(ioCtl, &inData, &sectionLength) < 0)
+                goto cleanup;
+
+            if (!inData) {
+                if (!sectionLength)
+                    break;
+
+                if (lseek(fdout, sectionLength, SEEK_CUR) == (off_t) -1) {
+                    virReportSystemError(errno,
+                                         _("Unable to seek in %s"), fdoutname);
+                    goto cleanup;
+                }
+                continue;
+            } else {
+                want = MIN(sectionLength, bufLen);
+            }
+        }
+
+        if (length &&
+            (length - total) < want)
+            want = length - total;
+
+        if (want == 0)
+            break; /* End of requested data from client */
+
+        if ((formattedIN && (nread = iohelperRead(ioCtl, buf, want)) < 0) ||
+            (!formattedIN && (nread = saferead(fdin, buf, want)) < 0)) {
+            virReportSystemError(errno, _("Unable to read %s"), fdinname);
+            goto cleanup;
+        }
+
+        if (!nread)
+            break;
+
+        total += nread;
+
+        if ((formattedOUT && (nwritten = iohelperWrite(ioCtl, buf, nread)) < 0) ||
+            (!formattedOUT && (nwritten = safewrite(fdout, buf, nread)) < 0)) {
+            virReportSystemError(errno, _("Unable to write %s"), fdoutname);
+            goto cleanup;
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    virObjectUnref(ioCtl);
+    VIR_FREE(buf);
+    return ret;
+}
+
+
+static int
 runIO(const char *path, int fd, int oflags,
       unsigned long long length, bool sparse)
 {
@@ -239,6 +349,9 @@ runIO(const char *path, int fd, int oflags,
                        _("O_DIRECT and sparse streams is not supported at once"));
         return -1;
     }
+
+    if (sparse)
+        return runIOFormatted(path, fd, oflags, length);
 
     return runIOBasic(path, fd, oflags, length);
 }
