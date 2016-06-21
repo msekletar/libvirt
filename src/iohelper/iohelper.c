@@ -252,7 +252,7 @@ usage(int status)
         fprintf(stderr, _("%s: try --help for more details"), program_name);
     } else {
         printf(_("Usage: %s FILENAME OFLAGS MODE OFFSET LENGTH DELETE\n"
-                 "   or: %s FILENAME LENGTH FD\n"),
+                 "   or: %s FILENAME LENGTH FD [sparse]\n"),
                program_name, program_name);
     }
     exit(status);
@@ -307,13 +307,15 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
         fd = prepare(path, oflags, mode, offset);
-    } else if (argc == 4) { /* FILENAME LENGTH FD */
+    } else if (argc == 4 || argc == 5) { /* FILENAME LENGTH FD [sparse] */
         lengthIndex = 2;
         if (virStrToLong_i(argv[3], NULL, 10, &fd) < 0) {
             fprintf(stderr, _("%s: malformed fd %s"),
                     program_name, argv[3]);
             exit(EXIT_FAILURE);
         }
+        if (argc == 5)
+            sparse = STREQ(argv[4], "sparse");
 #ifdef F_GETFL
         oflags = fcntl(fd, F_GETFL);
 #else
