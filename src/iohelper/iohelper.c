@@ -73,7 +73,7 @@ prepare(const char *path, int oflags, int mode,
 }
 
 static int
-runIO(const char *path, int fd, int oflags, unsigned long long length)
+runIOBasic(const char *path, int fd, int oflags, unsigned long long length)
 {
     void *base = NULL; /* Location to be freed */
     char *buf = NULL; /* Aligned location within base */
@@ -199,6 +199,23 @@ runIO(const char *path, int fd, int oflags, unsigned long long length)
     return ret;
 }
 
+
+static int
+runIO(const char *path, int fd, int oflags,
+      unsigned long long length, bool sparse)
+{
+    bool direct = O_DIRECT && ((oflags & O_DIRECT) != 0);
+
+    /* Right now, our implementation do not support O_DIRECT and sparse. */
+    if (direct && sparse) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("O_DIRECT and sparse streams is not supported at once"));
+        return -1;
+    }
+
+    return runIOBasic(path, fd, oflags, length);
+}
+
 static const char *program_name;
 
 ATTRIBUTE_NORETURN static void
@@ -225,6 +242,7 @@ main(int argc, char **argv)
     unsigned int delete = 0;
     int fd = -1;
     int lengthIndex = 0;
+    bool sparse = false;
 
     program_name = argv[0];
 
@@ -293,7 +311,7 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (fd < 0 || runIO(path, fd, oflags, length) < 0)
+    if (fd < 0 || runIO(path, fd, oflags, length, sparse) < 0)
         goto error;
 
     if (delete)
