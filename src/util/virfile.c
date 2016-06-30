@@ -3508,7 +3508,7 @@ int virFileInData(int fd,
                   unsigned long long *length)
 {
     int ret = -1;
-    off_t cur, data, hole;
+    off_t cur, end, data, hole;
 
     /* Get current position */
     cur = lseek(fd, 0, SEEK_CUR);
@@ -3535,8 +3535,15 @@ int virFileInData(int fd,
                                  _("Unable to seek to data"));
             goto cleanup;
         }
+
+        end = lseek(fd, 0, SEEK_END);
+        if (end == (off_t) -1) {
+            virReportSystemError(errno, "%s",
+                                 _("Unable to get end position in file"));
+            goto cleanup;
+        }
         *inData = 0;
-        *length = 0;
+        *length = end - cur;
     } else if (data > cur) {
         /* case 2 */
         *inData = 0;
