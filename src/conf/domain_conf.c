@@ -2616,6 +2616,19 @@ virDomainLoaderDefFree(virDomainLoaderDefPtr loader)
     VIR_FREE(loader);
 }
 
+void
+virDomainMemoryBackingFree(virDomainMemoryBackingPtr memBacking)
+{
+    size_t i;
+
+    if (!memBacking)
+        return;
+
+    for (i = 0; i < memBacking->nhugepages; i++)
+        virBitmapFree(memBacking->hugepages[i].nodemask);
+    VIR_FREE(memBacking->hugepages);
+}
+
 void virDomainDefFree(virDomainDefPtr def)
 {
     size_t i;
@@ -2755,9 +2768,7 @@ void virDomainDefFree(virDomainDefPtr def)
     virDomainMemballoonDefFree(def->memballoon);
     virDomainNVRAMDefFree(def->nvram);
 
-    for (i = 0; i < def->mem.nhugepages; i++)
-        virBitmapFree(def->mem.hugepages[i].nodemask);
-    VIR_FREE(def->mem.hugepages);
+    virDomainMemoryBackingFree(def->mem.backing);
 
     for (i = 0; i < def->nseclabels; i++)
         virSecurityLabelDefFree(def->seclabels[i]);
@@ -2851,8 +2862,10 @@ virDomainDefNew(void)
     if (VIR_ALLOC(ret) < 0)
         return NULL;
 
-    if (!(ret->numa = virDomainNumaNew()))
+    if (!(ret->numa = virDomainNumaNew()) ||
+        VIR_ALLOC(ret->mem.backing) < 0)
         goto error;
+
 
     ret->mem.hard_limit = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
     ret->mem.soft_limit = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
@@ -16095,6 +16108,88 @@ virDomainDefParseBootOptions(virDomainDefPtr def,
 }
 
 
+/**
+ * virDomainMemoryBackingParse:
+ * @def: where to store memory backing definition
+ * @ctxt: XPath context
+ *
+ * Parse <memoryBacking/> element and store its definition into automatically
+ * allocated object which address is then stored at @def.
+ *
+ * Returns 0 on success, -1 on error with error reported.
+ */
+static int
+virDomainMemoryBackingParse(virDomainMemoryBackingPtr *memBacking,
+                            xmlXPathContextPtr ctxt)
+{
+    virDomainMemoryBackingPtr def = *memBacking;
+    xmlNodePtr node = NULL, *nodes = NULL;
+    int n, ret = -1;
+    size_t i, j;
+
+    if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("cannot extract hugepages nodes"));
+        goto cleanup;
+    }
+
+    if (n) {
+        if (VIR_ALLOC_N(def->hugepages, n) < 0)
+            goto cleanup;
+
+        for (i = 0; i < n; i++) {
+            if (virDomainHugepagesParseXML(nodes[i], ctxt,
+                                           &def->hugepages[i]) < 0)
+                goto cleanup;
+            def->nhugepages++;
+
+            for (j = 0; j < i; j++) {
+                if (def->hugepages[i].nodemask &&
+                    def->hugepages[j].nodemask &&
+                    virBitmapOverlaps(def->hugepages[i].nodemask,
+                                      def->hugepages[j].nodemask)) {
+                    virReportError(VIR_ERR_XML_DETAIL,
+                                   _("nodeset attribute of hugepages "
+                                     "of sizes %llu and %llu intersect"),
+                                   def->hugepages[i].size,
+                                   def->hugepages[j].size);
+                    goto cleanup;
+                } else if (!def->hugepages[i].nodemask &&
+                           !def->hugepages[j].nodemask) {
+                    virReportError(VIR_ERR_XML_DETAIL,
+                                   _("two master hugepages detected: "
+                                     "%llu and %llu"),
+                                   def->hugepages[i].size,
+                                   def->hugepages[j].size);
+                    goto cleanup;
+                }
+            }
+        }
+    } else {
+        if ((node = virXPathNode("./memoryBacking/hugepages", ctxt))) {
+            if (VIR_ALLOC(def->hugepages) < 0)
+                goto cleanup;
+
+            def->nhugepages = 1;
+        }
+    }
+
+    if ((node = virXPathNode("./memoryBacking/nosharepages", ctxt)))
+        def->nosharepages = true;
+
+    if (virXPathBoolean("boolean(./memoryBacking/locked)", ctxt))
+        def->locked = true;
+
+    *memBacking = def;
+    def = NULL;
+    ret = 0;
+ cleanup:
+    virDomainMemoryBackingFree(def);
+    VIR_FREE(nodes);
+    return ret;
+}
+
+
 static virDomainDefPtr
 virDomainDefParseXML(xmlDocPtr xml,
                      xmlNodePtr root,
@@ -16291,60 +16386,9 @@ virDomainDefParseXML(xmlDocPtr xml,
     }
     VIR_FREE(tmp);
 
-    if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract hugepages nodes"));
+    /* Now parse memoryBacking element */
+    if (virDomainMemoryBackingParse(&def->mem.backing, ctxt) < 0)
         goto error;
-    }
-
-    if (n) {
-        if (VIR_ALLOC_N(def->mem.hugepages, n) < 0)
-            goto error;
-
-        for (i = 0; i < n; i++) {
-            if (virDomainHugepagesParseXML(nodes[i], ctxt,
-                                           &def->mem.hugepages[i]) < 0)
-                goto error;
-            def->mem.nhugepages++;
-
-            for (j = 0; j < i; j++) {
-                if (def->mem.hugepages[i].nodemask &&
-                    def->mem.hugepages[j].nodemask &&
-                    virBitmapOverlaps(def->mem.hugepages[i].nodemask,
-                                      def->mem.hugepages[j].nodemask)) {
-                    virReportError(VIR_ERR_XML_DETAIL,
-                                   _("nodeset attribute of hugepages "
-                                     "of sizes %llu and %llu intersect"),
-                                   def->mem.hugepages[i].size,
-                                   def->mem.hugepages[j].size);
-                    goto error;
-                } else if (!def->mem.hugepages[i].nodemask &&
-                           !def->mem.hugepages[j].nodemask) {
-                    virReportError(VIR_ERR_XML_DETAIL,
-                                   _("two master hugepages detected: "
-                                     "%llu and %llu"),
-                                   def->mem.hugepages[i].size,
-                                   def->mem.hugepages[j].size);
-                    goto error;
-                }
-            }
-        }
-
-        VIR_FREE(nodes);
-    } else {
-        if ((node = virXPathNode("./memoryBacking/hugepages", ctxt))) {
-            if (VIR_ALLOC(def->mem.hugepages) < 0)
-                goto error;
-
-            def->mem.nhugepages = 1;
-        }
-    }
-
-    if ((node = virXPathNode("./memoryBacking/nosharepages", ctxt)))
-        def->mem.nosharepages = true;
-
-    if (virXPathBoolean("boolean(./memoryBacking/locked)", ctxt))
-        def->mem.locked = true;
 
     /* Extract blkio cgroup tunables */
     if (virXPathUInt("string(./blkiotune/weight)", ctxt,
@@ -23377,6 +23421,25 @@ virDomainCpuDefFormat(virBufferPtr buf,
 }
 
 
+static void
+virDomainMemoryBackingFormat(virBufferPtr buf,
+                             const virDomainMemoryBacking *def)
+{
+    if (def->nhugepages || def->nosharepages || def->locked) {
+        virBufferAddLit(buf, "<memoryBacking>\n");
+        virBufferAdjustIndent(buf, 2);
+        if (def->nhugepages)
+            virDomainHugepagesFormat(buf, def->hugepages, def->nhugepages);
+        if (def->nosharepages)
+            virBufferAddLit(buf, "<nosharepages/>\n");
+        if (def->locked)
+            virBufferAddLit(buf, "<locked/>\n");
+        virBufferAdjustIndent(buf, -2);
+        virBufferAddLit(buf, "</memoryBacking>\n");
+    }
+}
+
+
 /* This internal version appends to an existing buffer
  * (possibly with auto-indent), rather than flattening
  * to string.
@@ -23539,18 +23602,7 @@ virDomainDefFormatInternal(virDomainDefPtr def,
         virBufferAddLit(buf, "</memtune>\n");
     }
 
-    if (def->mem.nhugepages || def->mem.nosharepages || def->mem.locked) {
-        virBufferAddLit(buf, "<memoryBacking>\n");
-        virBufferAdjustIndent(buf, 2);
-        if (def->mem.nhugepages)
-            virDomainHugepagesFormat(buf, def->mem.hugepages, def->mem.nhugepages);
-        if (def->mem.nosharepages)
-            virBufferAddLit(buf, "<nosharepages/>\n");
-        if (def->mem.locked)
-            virBufferAddLit(buf, "<locked/>\n");
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</memoryBacking>\n");
-    }
+    virDomainMemoryBackingFormat(buf, def->mem.backing);
 
     if (virDomainCpuDefFormat(buf, def) < 0)
         goto error;

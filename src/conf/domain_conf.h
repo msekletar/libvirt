@@ -2076,6 +2076,19 @@ struct _virDomainBlkiotune {
     virBlkioDevicePtr devices;
 };
 
+typedef struct _virDomainMemoryBacking virDomainMemoryBacking;
+typedef virDomainMemoryBacking *virDomainMemoryBackingPtr;
+
+struct _virDomainMemoryBacking {
+    virDomainHugePagePtr hugepages;
+    size_t nhugepages;
+    bool nosharepages;
+    bool locked;
+
+};
+
+void virDomainMemoryBackingFree(virDomainMemoryBackingPtr backing);
+
 typedef struct _virDomainMemtune virDomainMemtune;
 typedef virDomainMemtune *virDomainMemtunePtr;
 
@@ -2086,15 +2099,12 @@ struct _virDomainMemtune {
     unsigned long long cur_balloon; /* in kibibytes, capped at ulong thanks
                                        to virDomainGetInfo */
 
-    virDomainHugePagePtr hugepages;
-    size_t nhugepages;
-
     /* maximum supported memory for a guest, for hotplugging */
     unsigned long long max_memory; /* in kibibytes */
     unsigned int memory_slots; /* maximum count of RAM memory slots */
 
-    bool nosharepages;
-    bool locked;
+    virDomainMemoryBackingPtr backing;
+
     int dump_core; /* enum virTristateSwitch */
     unsigned long long hard_limit; /* in kibibytes, limit at off_t bytes */
     unsigned long long soft_limit; /* in kibibytes, limit at off_t bytes */

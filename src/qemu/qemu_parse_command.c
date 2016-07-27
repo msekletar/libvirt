@@ -2150,7 +2150,7 @@ qemuParseCommandLine(virCapsPtr caps,
                     if (def->mem.dump_core <= 0)
                         def->mem.dump_core = VIR_TRISTATE_SWITCH_ABSENT;
                 } else if (STRPREFIX(param, "mem-merge=off")) {
-                    def->mem.nosharepages = true;
+                    def->mem.backing->nosharepages = true;
                 } else if (STRPREFIX(param, "accel=kvm")) {
                     def->virtType = VIR_DOMAIN_VIRT_KVM;
                     def->features[VIR_DOMAIN_FEATURE_PAE] = VIR_TRISTATE_SWITCH_ON;
