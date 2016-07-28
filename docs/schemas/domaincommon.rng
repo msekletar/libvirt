@@ -4655,6 +4655,7 @@
       <attribute name="model">
         <choice>
           <value>dimm</value>
+          <value>nvdimm</value>
         </choice>
       </attribute>
       <interleave>
@@ -4674,18 +4675,27 @@
 
   <define name="memorydev-source">
     <element name="source">
-      <interleave>
-        <optional>
-          <element name="pagesize">
-            <ref name="scaledInteger"/>
+      <choice>
+        <group>
+          <interleave>
+            <optional>
+              <element name="pagesize">
+                <ref name="scaledInteger"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="nodemask">
+                <ref name="cpuset"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+        <group>
+          <element name="path">
+            <text/>
           </element>
-        </optional>
-        <optional>
-          <element name="nodemask">
-            <ref name="cpuset"/>
-          </element>
-        </optional>
-      </interleave>
+        </group>
+      </choice>
     </element>
   </define>
 

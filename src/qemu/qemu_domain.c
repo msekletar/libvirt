@@ -5485,6 +5485,7 @@ qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
 {
     switch ((virDomainMemoryModel) mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         if (mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM &&
             mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
