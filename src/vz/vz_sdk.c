@@ -2427,7 +2427,8 @@ prlsdkCheckUnsupportedParams(PRL_HANDLE sdkdom, virDomainDefPtr def)
         return -1;
     }
 
-    if (def->mem.backing->nhugepages ||
+    if ((def->mem.backing &&
+         def->mem.backing->nhugepages) ||
         virMemoryLimitIsSet(def->mem.hard_limit) ||
         virMemoryLimitIsSet(def->mem.soft_limit) ||
         def->mem.min_guarantee ||

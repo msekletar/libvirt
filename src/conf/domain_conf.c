@@ -2862,8 +2862,7 @@ virDomainDefNew(void)
     if (VIR_ALLOC(ret) < 0)
         return NULL;
 
-    if (!(ret->numa = virDomainNumaNew()) ||
-        VIR_ALLOC(ret->mem.backing) < 0)
+    if (!(ret->numa = virDomainNumaNew()))
         goto error;
 
 
@@ -16122,12 +16121,23 @@ static int
 virDomainMemoryBackingParse(virDomainMemoryBackingPtr *memBacking,
                             xmlXPathContextPtr ctxt)
 {
-    virDomainMemoryBackingPtr def = *memBacking;
-    xmlNodePtr node = NULL, *nodes = NULL;
+    virDomainMemoryBackingPtr def = NULL;
+    xmlNodePtr saveNode, memoryBackingNode, node = NULL, *nodes = NULL;
     int n, ret = -1;
     size_t i, j;
 
-    if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
+    if (!(memoryBackingNode = virXPathNode("./memoryBacking[1]", ctxt))) {
+        /* No such element. Claim success. */
+        return 0;
+    }
+
+    if (VIR_ALLOC(def) < 0)
+        return ret;
+
+    saveNode = ctxt->node;
+    ctxt->node = memoryBackingNode;
+
+    if ((n = virXPathNodeSet("./hugepages/page", ctxt, &nodes)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("cannot extract hugepages nodes"));
         goto cleanup;
@@ -16166,7 +16176,7 @@ virDomainMemoryBackingParse(virDomainMemoryBackingPtr *memBacking,
             }
         }
     } else {
-        if ((node = virXPathNode("./memoryBacking/hugepages", ctxt))) {
+        if ((node = virXPathNode("./hugepages", ctxt))) {
             if (VIR_ALLOC(def->hugepages) < 0)
                 goto cleanup;
 
@@ -16174,10 +16184,10 @@ virDomainMemoryBackingParse(virDomainMemoryBackingPtr *memBacking,
         }
     }
 
-    if ((node = virXPathNode("./memoryBacking/nosharepages", ctxt)))
+    if ((node = virXPathNode("./nosharepages", ctxt)))
         def->nosharepages = true;
 
-    if (virXPathBoolean("boolean(./memoryBacking/locked)", ctxt))
+    if (virXPathBoolean("boolean(./locked)", ctxt))
         def->locked = true;
 
     *memBacking = def;
@@ -16186,6 +16196,7 @@ virDomainMemoryBackingParse(virDomainMemoryBackingPtr *memBacking,
  cleanup:
     virDomainMemoryBackingFree(def);
     VIR_FREE(nodes);
+    ctxt->node = saveNode;
     return ret;
 }
 
@@ -23425,18 +23436,19 @@ static void
 virDomainMemoryBackingFormat(virBufferPtr buf,
                              const virDomainMemoryBacking *def)
 {
-    if (def->nhugepages || def->nosharepages || def->locked) {
-        virBufferAddLit(buf, "<memoryBacking>\n");
-        virBufferAdjustIndent(buf, 2);
-        if (def->nhugepages)
-            virDomainHugepagesFormat(buf, def->hugepages, def->nhugepages);
-        if (def->nosharepages)
-            virBufferAddLit(buf, "<nosharepages/>\n");
-        if (def->locked)
-            virBufferAddLit(buf, "<locked/>\n");
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</memoryBacking>\n");
-    }
+    if (!def)
+        return;
+
+    virBufferAddLit(buf, "<memoryBacking>\n");
+    virBufferAdjustIndent(buf, 2);
+    if (def->nhugepages)
+        virDomainHugepagesFormat(buf, def->hugepages, def->nhugepages);
+    if (def->nosharepages)
+        virBufferAddLit(buf, "<nosharepages/>\n");
+    if (def->locked)
+        virBufferAddLit(buf, "<locked/>\n");
+    virBufferAdjustIndent(buf, -2);
+    virBufferAddLit(buf, "</memoryBacking>\n");
 }
 
 

@@ -4399,7 +4399,9 @@ qemuProcessStartWarnShmem(virDomainObjPtr vm)
      * whether there are *some* hugepages enabled and *some* NUMA
      * nodes with shared memory access.
      */
-    if (!shmem && vm->def->mem.backing->nhugepages) {
+    if (!shmem &&
+        vm->def->mem.backing &&
+        vm->def->mem.backing->nhugepages) {
         for (i = 0; i < virDomainNumaGetNodeCount(vm->def->numa); i++) {
             if (virDomainNumaGetNodeMemoryAccessMode(vm->def->numa, i) ==
                 VIR_NUMA_MEM_ACCESS_SHARED) {
@@ -5241,7 +5243,8 @@ qemuProcessPrepareHost(virQEMUDriverPtr driver,
                                NULL) < 0)
         goto cleanup;
 
-    if (vm->def->mem.backing->nhugepages) {
+    if (vm->def->mem.backing &&
+        vm->def->mem.backing->nhugepages) {
         for (i = 0; i < cfg->nhugetlbfs; i++) {
             char *hugepagePath = qemuGetHugepagePath(&cfg->hugetlbfs[i]);
 

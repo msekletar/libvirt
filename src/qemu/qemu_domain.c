@@ -5826,7 +5826,8 @@ qemuDomainRequiresMemLock(virDomainDefPtr def)
 {
     size_t i;
 
-    if (def->mem.backing->locked)
+    if (def->mem.backing &&
+        def->mem.backing->locked)
         return true;
 
     for (i = 0; i < def->nhostdevs; i++) {

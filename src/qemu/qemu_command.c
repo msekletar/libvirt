@@ -3216,7 +3216,7 @@ qemuBuildMemoryBackendStr(unsigned long long size,
         virDomainNumatuneGetMode(def->numa, -1, &mode) < 0)
         mode = VIR_DOMAIN_NUMATUNE_MEM_STRICT;
 
-    if (pagesize == 0) {
+    if (def->mem.backing && pagesize == 0) {
         bool thisHugepage = false;
 
         /* Find the huge page size we want to use */
@@ -6907,7 +6907,8 @@ qemuBuildMachineCommandLine(virCommandPtr cmd,
             return -1;
         }
 
-        if (def->mem.backing->nosharepages) {
+        if (def->mem.backing &&
+            def->mem.backing->nosharepages) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("disable shared memory is not available "
                              "with this QEMU binary"));
@@ -6982,7 +6983,8 @@ qemuBuildMachineCommandLine(virCommandPtr cmd,
             }
         }
 
-        if (def->mem.backing->nosharepages) {
+        if (def->mem.backing &&
+            def->mem.backing->nosharepages) {
             if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MEM_MERGE)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("disable shared memory is not available "
@@ -7115,7 +7117,8 @@ qemuBuildMemPathStr(virQEMUDriverConfigPtr cfg,
     /*
      *  No-op if hugepages were not requested.
      */
-    if (!def->mem.backing->nhugepages)
+    if (!def->mem.backing ||
+        !def->mem.backing->nhugepages)
         return 0;
 
     /* There is one special case: if user specified "huge"
@@ -7173,7 +7176,9 @@ qemuBuildMemCommandLine(virCommandPtr cmd,
         qemuBuildMemPathStr(cfg, def, qemuCaps, cmd) < 0)
         return -1;
 
-    if (def->mem.backing->locked && !virQEMUCapsGet(qemuCaps, QEMU_CAPS_REALTIME_MLOCK)) {
+    if (def->mem.backing &&
+        def->mem.backing->locked &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_REALTIME_MLOCK)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("memory locking not supported by QEMU binary"));
         return -1;
@@ -7181,7 +7186,8 @@ qemuBuildMemCommandLine(virCommandPtr cmd,
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_REALTIME_MLOCK)) {
         virCommandAddArg(cmd, "-realtime");
         virCommandAddArgFormat(cmd, "mlock=%s",
-                               def->mem.backing->locked ? "on" : "off");
+                               (def->mem.backing &&
+                                def->mem.backing->locked) ? "on" : "off");
     }
 
     return 0;
@@ -7245,7 +7251,8 @@ qemuBuildNumaArgStr(virQEMUDriverConfigPtr cfg,
         goto cleanup;
     }
 
-    if (def->mem.backing->nhugepages &&
+    if (def->mem.backing &&
+        def->mem.backing->nhugepages &&
         def->mem.backing->hugepages[0].size != system_page_size &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -7257,27 +7264,29 @@ qemuBuildNumaArgStr(virQEMUDriverConfigPtr cfg,
     if (!virDomainNumatuneNodesetIsAvailable(def->numa, auto_nodeset))
         goto cleanup;
 
-    for (i = 0; i < def->mem.backing->nhugepages; i++) {
-        ssize_t next_bit, pos = 0;
+    if (def->mem.backing) {
+        for (i = 0; i < def->mem.backing->nhugepages; i++) {
+            ssize_t next_bit, pos = 0;
 
-        if (!def->mem.backing->hugepages[i].nodemask) {
-            /* This is the master hugepage to use. Skip it as it has no
-             * nodemask anyway. */
-            continue;
-        }
+            if (!def->mem.backing->hugepages[i].nodemask) {
+                /* This is the master hugepage to use. Skip it as it has no
+                 * nodemask anyway. */
+                continue;
+            }
 
-        if (ncells) {
-            /* Fortunately, we allow only guest NUMA nodes to be continuous
-             * starting from zero. */
-            pos = ncells - 1;
-        }
+            if (ncells) {
+                /* Fortunately, we allow only guest NUMA nodes to be continuous
+                 * starting from zero. */
+                pos = ncells - 1;
+            }
 
-        next_bit = virBitmapNextSetBit(def->mem.backing->hugepages[i].nodemask, pos);
-        if (next_bit >= 0) {
-            virReportError(VIR_ERR_XML_DETAIL,
-                           _("hugepages: node %zd not found"),
-                           next_bit);
-            goto cleanup;
+            next_bit = virBitmapNextSetBit(def->mem.backing->hugepages[i].nodemask, pos);
+            if (next_bit >= 0) {
+                virReportError(VIR_ERR_XML_DETAIL,
+                               _("hugepages: node %zd not found"),
+                               next_bit);
+                goto cleanup;
+            }
         }
     }
 
