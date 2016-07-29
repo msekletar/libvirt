@@ -339,13 +339,19 @@ qemuAssignDeviceMemoryAlias(virDomainDefPtr def,
     size_t i;
     int maxidx = 0;
     int idx;
+    const char *prefix;
+
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_DIMM)
+        prefix = "dimm";
+    else
+        prefix = "nvdimm";
 
     for (i = 0; i < def->nmems; i++) {
-        if ((idx = qemuDomainDeviceAliasIndex(&def->mems[i]->info, "dimm")) >= maxidx)
+        if ((idx = qemuDomainDeviceAliasIndex(&def->mems[i]->info, prefix)) >= maxidx)
             maxidx = idx + 1;
     }
 
-    if (virAsprintf(&mem->info.alias, "dimm%d", maxidx) < 0)
+    if (virAsprintf(&mem->info.alias, "%s%d", prefix, maxidx) < 0)
         return -1;
 
     return 0;
@@ -475,7 +481,7 @@ qemuAssignDeviceAliases(virDomainDefPtr def, virQEMUCapsPtr qemuCaps)
             return -1;
     }
     for (i = 0; i < def->nmems; i++) {
-        if (virAsprintf(&def->mems[i]->info.alias, "dimm%zu", i) < 0)
+        if (qemuAssignDeviceMemoryAlias(def, def->mems[i]) < 0)
             return -1;
     }
 
