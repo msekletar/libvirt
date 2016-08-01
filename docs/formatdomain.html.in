@@ -1403,7 +1403,7 @@
       <span class='since'>Since 1.2.9</span> the optional attribute
       <code>memAccess</code> can control whether the memory is to be
       mapped as "shared" or "private".  This is valid only for
-      hugepages-backed memory.
+      hugepages-backed memory and nvdimm modules.
     </p>
 
     <p>
@@ -6886,7 +6886,7 @@ qemu-kvm -net nic,model=? /dev/null
 <pre>
   ...
   &lt;devices&gt;
-    &lt;memory model='dimm'&gt;
+    &lt;memory model='dimm' memAccess='private'&gt;
       &lt;target&gt;
         &lt;size unit='KiB'&gt;524287&lt;/size&gt;
         &lt;node&gt;0&lt;/node&gt;
@@ -6921,6 +6921,17 @@ qemu-kvm -net nic,model=? /dev/null
           Select <code>dimm</code> to add a virtual DIMM module to the guest.
           Alternatively, <code>nvdimm</code> model adds a Non-Volatile DIMM
           module. <span class="since">Since 2.2.0</span>
+        </p>
+      </dd>
+
+      <dt><code>memAccess</code></dt>
+      <dd>
+        <p>
+          Then there is optional attribute <code>memAccess</code>
+          (<span class="since">Since 2.2.0</span>) that allows
+          uses to fine tune mapping of the memory on per module
+          basis. Values are the same as for numa &lt;cell/&gt;:
+          <code>shared</code> and <code>private</code>.
         </p>
       </dd>
 

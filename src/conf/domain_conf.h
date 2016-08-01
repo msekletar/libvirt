@@ -1955,6 +1955,8 @@ typedef enum {
 } virDomainMemoryModel;
 
 struct _virDomainMemoryDef {
+    virNumaMemAccess memAccess;
+
     /* source */
     virBitmapPtr sourceNodes;
     unsigned long long pagesize; /* kibibytes */
