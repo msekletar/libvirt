@@ -13489,6 +13489,15 @@ virDomainMemoryDefParseXML(xmlNodePtr memdevNode,
     }
     VIR_FREE(tmp);
 
+    tmp = virXMLPropString(memdevNode, "memAccess");
+    if (tmp &&
+        (def->memAccess = virNumaMemAccessTypeFromString(tmp)) <= 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("invalid memAccess mode '%s'"), tmp);
+        goto error;
+    }
+    VIR_FREE(tmp);
+
     /* source */
     if ((node = virXPathNode("./source", ctxt)) &&
         virDomainMemorySourceDefParseXML(node, ctxt, def) < 0)
@@ -22191,7 +22200,11 @@ virDomainMemoryDefFormat(virBufferPtr buf,
 {
     const char *model = virDomainMemoryModelTypeToString(def->model);
 
-    virBufferAsprintf(buf, "<memory model='%s'>\n", model);
+    virBufferAsprintf(buf, "<memory model='%s'", model);
+    if (def->memAccess)
+        virBufferAsprintf(buf, " memAccess='%s'",
+                          virNumaMemAccessTypeToString(def->memAccess));
+    virBufferAddLit(buf, ">\n");
     virBufferAdjustIndent(buf, 2);
 
     if (virDomainMemorySourceDefFormat(buf, def) < 0)
