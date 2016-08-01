@@ -3156,6 +3156,7 @@ qemuBuildControllerDevCommandLine(virCommandPtr cmd,
  * @hostNodes: map of host nodes to alloc the memory in, NULL for default
  * @autoNodeset: fallback nodeset in case of automatic numa placement
  * @memPath: request memory-backend-file with specific mem-path
+ * @memAccessReq: specifically requested memAccess mode
  * @def: domain definition object
  * @qemuCaps: qemu capabilities object
  * @cfg: qemu driver config object
@@ -3178,6 +3179,7 @@ qemuBuildMemoryBackendStr(unsigned long long size,
                           virBitmapPtr userNodeset,
                           virBitmapPtr autoNodeset,
                           const char *memPath,
+                          virNumaMemAccess memAccessReq,
                           virDomainDefPtr def,
                           virQEMUCapsPtr qemuCaps,
                           virQEMUDriverConfigPtr cfg,
@@ -3213,6 +3215,9 @@ qemuBuildMemoryBackendStr(unsigned long long size,
 
         memAccess = virDomainNumaGetNodeMemoryAccessMode(def->numa, guestNode);
     }
+
+    if (memAccessReq)
+        memAccess = memAccessReq;
 
     if (virDomainNumatuneGetMode(def->numa, guestNode, &mode) < 0 &&
         virDomainNumatuneGetMode(def->numa, -1, &mode) < 0)
@@ -3392,7 +3397,8 @@ qemuBuildMemoryCellBackendStr(virDomainDefPtr def,
         goto cleanup;
 
     if ((rc = qemuBuildMemoryBackendStr(memsize, 0, cell, NULL, auto_nodeset,
-                                        NULL, def, qemuCaps, cfg, &backendType,
+                                        NULL, VIR_NUMA_MEM_ACCESS_DEFAULT,
+                                        def, qemuCaps, cfg, &backendType,
                                         &props, false)) < 0)
         goto cleanup;
 
@@ -3434,7 +3440,8 @@ qemuBuildMemoryDimmBackendStr(virDomainMemoryDefPtr mem,
 
     if (qemuBuildMemoryBackendStr(mem->size, mem->pagesize,
                                   mem->targetNode, mem->sourceNodes, auto_nodeset,
-                                  mem->path, def, qemuCaps, cfg,
+                                  mem->path, mem->memAccess,
+                                  def, qemuCaps, cfg,
                                   &backendType, &props, true) < 0)
         goto cleanup;
 
