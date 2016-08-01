@@ -4658,6 +4658,9 @@
           <value>nvdimm</value>
         </choice>
       </attribute>
+      <optional>
+        <ref name="memAccess"/>
+      </optional>
       <interleave>
         <optional>
           <ref name="memorydev-source"/>
