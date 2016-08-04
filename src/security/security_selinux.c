@@ -2694,6 +2694,9 @@ virSecurityDriver virSecurityDriverSELinux = {
     .domainSetSecurityImageLabel        = virSecuritySELinuxSetImageLabel,
     .domainRestoreSecurityImageLabel    = virSecuritySELinuxRestoreImageLabel,
 
+    .domainSetSecurityMemoryLabel       = virSecuritySELinuxSetMemoryLabel,
+    .domainRestoreSecurityMemoryLabel   = virSecuritySELinuxRestoreMemoryLabel,
+
     .domainSetSecurityDaemonSocketLabel = virSecuritySELinuxSetDaemonSocketLabel,
     .domainSetSecuritySocketLabel       = virSecuritySELinuxSetSocketLabel,
     .domainClearSecuritySocketLabel     = virSecuritySELinuxClearSocketLabel,
