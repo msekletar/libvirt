@@ -2025,6 +2025,7 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
     int id;
     int ret = -1;
     int rv;
+    bool restoreLabel = false;
 
     qemuDomainMemoryDeviceAlignSize(vm->def, mem);
 
@@ -2056,6 +2057,11 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
         virJSONValueFree(props);
         goto removedef;
     }
+
+    if (virSecurityManagerSetMemoryLabel(driver->securityManager,
+                                         vm->def, mem) < 0)
+        goto cleanup;
+    restoreLabel = true;
 
     qemuDomainObjEnterMonitor(driver, vm);
     rv = qemuMonitorAddObject(priv->mon, backendType, objalias, props);
@@ -2109,6 +2115,10 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
         mem = NULL;
         goto audit;
     }
+    if (mem && restoreLabel &&
+        virSecurityManagerRestoreMemoryLabel(driver->securityManager,
+                                             vm->def, mem) < 0)
+        VIR_WARN("Unable to restore security label on memdev");
 
  removedef:
     if ((id = virDomainMemoryFindByDef(vm->def, mem)) >= 0)
@@ -3289,6 +3299,10 @@ qemuDomainRemoveMemoryDevice(virQEMUDriverPtr driver,
 
     if ((idx = virDomainMemoryFindByDef(vm->def, mem)) >= 0)
         virDomainMemoryRemove(vm->def, idx);
+
+    if (virSecurityManagerRestoreMemoryLabel(driver->securityManager,
+                                             vm->def, mem) < 0)
+        VIR_WARN("Unable to restore security label on memdev");
 
     virDomainMemoryDefFree(mem);
 
