@@ -1119,6 +1119,62 @@ virSecuritySELinuxRestoreInputLabel(virSecurityManagerPtr mgr,
 
 
 static int
+virSecuritySELinuxSetMemoryLabel(virSecurityManagerPtr mgr,
+                                 virDomainDefPtr def,
+                                 virDomainMemoryDefPtr mem)
+{
+    virSecurityLabelDefPtr seclabel;
+
+    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
+    if (seclabel == NULL)
+        return 0;
+
+    switch ((virDomainMemoryModel) mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        if (virSecuritySELinuxSetFilecon(mgr, mem->path,
+                                         seclabel->imagelabel) < 0)
+            return -1;
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
+static int
+virSecuritySELinuxRestoreMemoryLabel(virSecurityManagerPtr mgr,
+                                     virDomainDefPtr def,
+                                     virDomainMemoryDefPtr mem)
+{
+    int ret = -1;
+    virSecurityLabelDefPtr seclabel;
+
+    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
+    if (seclabel == NULL)
+        return 0;
+
+    switch ((virDomainMemoryModel) mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        ret = virSecuritySELinuxRestoreFileLabel(mgr, mem->path);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        ret = 0;
+        break;
+    }
+
+    return ret;
+}
+
+
+static int
 virSecuritySELinuxSetTPMFileLabel(virSecurityManagerPtr mgr,
                                   virDomainDefPtr def,
                                   virDomainTPMDefPtr tpm)
@@ -2016,6 +2072,11 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManagerPtr mgr,
             rc = -1;
     }
 
+    for (i = 0; i < def->nmems; i++) {
+        if (virSecuritySELinuxRestoreMemoryLabel(mgr, def, def->mems[i]) < 0)
+            return -1;
+    }
+
     for (i = 0; i < def->ndisks; i++) {
         virDomainDiskDefPtr disk = def->disks[i];
 
@@ -2399,6 +2460,11 @@ virSecuritySELinuxSetAllLabel(virSecurityManagerPtr mgr,
 
     for (i = 0; i < def->ninputs; i++) {
         if (virSecuritySELinuxSetInputLabel(mgr, def, def->inputs[i]) < 0)
+            return -1;
+    }
+
+    for (i = 0; i < def->nmems; i++) {
+        if (virSecuritySELinuxSetMemoryLabel(mgr, def, def->mems[i]) < 0)
             return -1;
     }
 
