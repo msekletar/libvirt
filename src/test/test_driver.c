@@ -72,9 +72,16 @@ VIR_LOG_INIT("test.test_driver");
 
 #define MAX_CPUS 128
 
+struct _testPage {
+    unsigned long pagesize; /* in KiB */
+    unsigned long pages;    /* in total, pagesFree should never
+                               be greater than this. */
+    unsigned long long pagesFree; /* free pages */
+};
+
 struct _testCell {
-    unsigned long mem;
-    unsigned long freeMem;
+    size_t npages;
+    struct _testPage *pages;
     int numCpus;
     virCapsHostNUMACellCPU cpus[MAX_CPUS];
 };
@@ -319,16 +326,16 @@ testBuildCapabilities(virConnectPtr conn)
     if (virCapabilitiesAddHostFeature(caps, "nonpae") < 0)
         goto error;
 
-    if (VIR_ALLOC_N(caps->host.pagesSize, 2) < 0)
+    if (VIR_ALLOC_N(caps->host.pagesSize, privconn->cells[0].npages) < 0)
         goto error;
 
-    caps->host.pagesSize[caps->host.nPagesSize++] = 4;
-    caps->host.pagesSize[caps->host.nPagesSize++] = 2048;
+    for (i = 0; i < privconn->cells[i].npages; i++)
+        caps->host.pagesSize[caps->host.nPagesSize++] = privconn->cells[0].pages[i].pagesize;
 
     for (i = 0; i < privconn->numCells; i++) {
         virCapsHostNUMACellCPUPtr cpu_cells;
         virCapsHostNUMACellPageInfoPtr pages;
-        size_t nPages;
+        unsigned long mem = 0;
 
         if (VIR_ALLOC_N(cpu_cells, privconn->cells[i].numCpus) < 0 ||
             VIR_ALLOC_N(pages, caps->host.nPagesSize) < 0) {
@@ -336,19 +343,20 @@ testBuildCapabilities(virConnectPtr conn)
                 goto error;
             }
 
-        nPages = caps->host.nPagesSize;
-
         memcpy(cpu_cells, privconn->cells[i].cpus,
                sizeof(*cpu_cells) * privconn->cells[i].numCpus);
 
-        for (j = 0; j < nPages; j++)
-            pages[j].size = caps->host.pagesSize[j];
+        for (j = 0; j < caps->host.nPagesSize; j++) {
+            pages[j].size = privconn->cells[i].pages[j].pagesize;
+            pages[j].avail = privconn->cells[i].pages[j].pages;
 
-        pages[0].avail = privconn->cells[i].mem / pages[0].size;
+            mem += pages[j].size * pages[j].avail;
+        }
 
-        if (virCapabilitiesAddHostNUMACell(caps, i, privconn->cells[i].mem,
+        if (virCapabilitiesAddHostNUMACell(caps, i, mem,
                                            privconn->cells[i].numCpus,
-                                           cpu_cells, 0, NULL, nPages, pages) < 0)
+                                           cpu_cells, 0, NULL,
+                                           caps->host.nPagesSize, pages) < 0)
             goto error;
     }
 
@@ -1285,8 +1293,20 @@ testOpenDefault(virConnectPtr conn)
     privconn->numCells = 2;
     for (i = 0; i < privconn->numCells; i++) {
         privconn->cells[i].numCpus = 8;
-        privconn->cells[i].mem = (i + 1) * 2048 * 1024;
-        privconn->cells[i].freeMem = (i + 1) * 1024 * 1024;
+
+        if (VIR_ALLOC_N(privconn->cells[i].pages, 2) < 0)
+            goto error;
+        privconn->cells[i].npages = 2;
+
+        /* Let the node have some 4k pages */
+        privconn->cells[i].pages[0].pagesize = 4;
+        privconn->cells[i].pages[0].pages = (i + 1) * 2048 * 1024;
+        privconn->cells[i].pages[0].pagesFree = (i + 1) * 1024 * 1024;
+
+        /* And also some 2M pages */
+        privconn->cells[i].pages[1].pagesize = 2048;
+        privconn->cells[i].pages[1].pages = (i + 1) * 2048;
+        privconn->cells[i].pages[1].pagesFree = (i + 1) * 128;
     }
     for (i = 0; i < 16; i++) {
         virBitmapPtr siblings = virBitmapNew(16);
@@ -2719,7 +2739,9 @@ static int testNodeGetCellsFreeMemory(virConnectPtr conn,
     for (cell = startCell, i = 0;
          (cell < privconn->numCells && i < maxCells);
          ++cell, ++i) {
-        freemems[i] = privconn->cells[cell].mem;
+        struct _testCell *tmp = &privconn->cells[cell];
+
+        freemems[i] = tmp->pages[0].pagesize * tmp->pages[0].pagesFree * 1024;
     }
     ret = i;
 
@@ -2784,35 +2806,63 @@ testNodeGetFreeMemory(virConnectPtr conn)
 
     testDriverLock(privconn);
 
-    for (i = 0; i < privconn->numCells; i++)
-        freeMem += privconn->cells[i].freeMem;
+    for (i = 0; i < privconn->numCells; i++) {
+        struct _testCell *tmp = &privconn->cells[i];
+
+        freeMem += tmp->pages[0].pagesize * tmp->pages[0].pagesFree * 1024;
+    }
 
     testDriverUnlock(privconn);
     return freeMem;
 }
 
 static int
-testNodeGetFreePages(virConnectPtr conn ATTRIBUTE_UNUSED,
+testNodeGetFreePages(virConnectPtr conn,
                      unsigned int npages,
-                     unsigned int *pages ATTRIBUTE_UNUSED,
-                     int startCell ATTRIBUTE_UNUSED,
+                     unsigned int *pages,
+                     int startCell,
                      unsigned int cellCount,
                      unsigned long long *counts,
                      unsigned int flags)
 {
-    size_t i = 0, j = 0;
-    int x = 6;
+    testDriverPtr privconn = conn->privateData;
+    size_t i, ncounts = 0;
+    int lastCell;
+    int ret = -1;
 
     virCheckFlags(0, -1);
 
-    for (i = 0; i < cellCount; i++) {
-        for (j = 0; j < npages; j++) {
-            x = x * 2 + 7;
-            counts[(i * npages) +  j] = x;
+    testDriverLock(privconn);
+
+    lastCell = privconn->numCells - 1;
+
+    if (startCell < 0 || startCell > lastCell) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("start cell %d out of range (0-%d)"),
+                       startCell, lastCell);
+        goto cleanup;
+    }
+
+    lastCell = MIN(lastCell, startCell + (int) cellCount - 1);
+
+    for (i = startCell; i <= lastCell; i++) {
+        testCellPtr cell = &privconn->cells[i];
+        size_t j, k;
+
+        for (j = 0; j < cell->npages; j++) {
+            for (k = 0; k < npages; k++) {
+                if (pages[k] != cell->pages[j].pagesize)
+                    continue;
+
+                counts[ncounts++] = cell->pages[j].pagesFree;
+            }
         }
     }
 
-    return 0;
+    ret = ncounts;
+ cleanup:
+    testDriverUnlock(privconn);
+    return ret;
 }
 
 static int testDomainCreateWithFlags(virDomainPtr domain, unsigned int flags)
