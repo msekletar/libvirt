@@ -2865,6 +2865,83 @@ testNodeGetFreePages(virConnectPtr conn,
     return ret;
 }
 
+static int
+testNodeAllocPages(virConnectPtr conn,
+                   unsigned int npages,
+                   unsigned int *pageSizes,
+                   unsigned long long *pageCounts,
+                   int startCell,
+                   unsigned int cellCount,
+                   unsigned int flags)
+{
+    testDriverPtr privconn = conn->privateData;
+    bool add = !(flags & VIR_NODE_ALLOC_PAGES_SET);
+    ssize_t i, ncounts = 0;
+    size_t j;
+    int lastCell;
+    int ret = -1;
+
+    virCheckFlags(VIR_NODE_ALLOC_PAGES_SET, -1);
+
+    testDriverLock(privconn);
+
+    lastCell = privconn->numCells - 1;
+
+    if (startCell < -1 || startCell > lastCell) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("start cell %d out of range (0-%d)"),
+                       startCell, lastCell);
+        goto cleanup;
+    }
+
+    lastCell = MIN(lastCell, startCell + (int) cellCount - 1);
+
+    if (startCell == -1) {
+        /* Okay, hold on to your hats because this is gonna get wild.
+         * startCell == -1 means that user wants us to allocate
+         * pages over all NUMA nodes proportionally. Just
+         * recalculate the pageCounts and we should be good. */
+        for (j = 0; j < npages; j++)
+            pageCounts[j] /= privconn->numCells;
+        startCell = 0;
+        lastCell = privconn->numCells - 1;
+    }
+
+    for (i = startCell; i <= lastCell; i++) {
+        testCellPtr cell = &privconn->cells[i];
+        size_t k;
+
+        for (j = 0; j < cell->npages; j++) {
+            for (k = 0; k < npages; k++) {
+                unsigned long long pagesFree = cell->pages[j].pagesFree;
+
+                if (pageSizes[k] != cell->pages[j].pagesize)
+                    continue;
+
+                if (add)
+                    pagesFree += pageCounts[k];
+                else
+                    pagesFree = pageCounts[k];
+
+                if (pagesFree > cell->pages[j].pages) {
+                    virReportError(VIR_ERR_OPERATION_FAILED,
+                                   _("Unable to allocate %llu pages"),
+                                   pagesFree);
+                    goto cleanup;
+                }
+
+                cell->pages[j].pagesFree = pagesFree;
+                ncounts++;
+            }
+        }
+    }
+
+    ret = ncounts;
+ cleanup:
+    testDriverUnlock(privconn);
+    return ret;
+}
+
 static int testDomainCreateWithFlags(virDomainPtr domain, unsigned int flags)
 {
     testDriverPtr privconn = domain->conn->privateData;
@@ -6870,6 +6947,7 @@ static virHypervisorDriver testHypervisorDriver = {
     .nodeGetCPUStats = testNodeGetCPUStats, /* 2.3.0 */
     .nodeGetFreeMemory = testNodeGetFreeMemory, /* 2.3.0 */
     .nodeGetFreePages = testNodeGetFreePages, /* 2.3.0 */
+    .nodeAllocPages = testNodeAllocPages, /* 2.4.0 */
     .connectGetCapabilities = testConnectGetCapabilities, /* 0.2.1 */
     .connectGetSysinfo = testConnectGetSysinfo, /* 2.3.0 */
     .connectGetType = testConnectGetType, /* 2.3.0 */
