@@ -95,7 +95,7 @@ struct _virDomainPCIAddressSet {
 typedef struct _virDomainPCIAddressSet virDomainPCIAddressSet;
 typedef virDomainPCIAddressSet *virDomainPCIAddressSetPtr;
 
-char *virDomainPCIAddressAsString(virPCIDeviceAddressPtr addr)
+char *virDomainPCIAddressAsString(const virPCIDeviceAddress *addr)
       ATTRIBUTE_NONNULL(1);
 
 virDomainPCIAddressSetPtr virDomainPCIAddressSetAlloc(unsigned int nbuses);
@@ -251,12 +251,12 @@ virDomainVirtioSerialAddrRelease(virDomainVirtioSerialAddrSetPtr addrs,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 bool
-virDomainUSBAddressPortIsValid(unsigned int *port)
+virDomainUSBAddressPortIsValid(const unsigned int *port)
     ATTRIBUTE_NONNULL(1);
 
 void
 virDomainUSBAddressPortFormatBuf(virBufferPtr buf,
-                                 unsigned int *port)
+                                 const unsigned int *port)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 char *
 virDomainUSBAddressPortFormat(unsigned int *port)

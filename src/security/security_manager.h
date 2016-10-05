@@ -141,10 +141,10 @@ int virSecurityManagerSetChildProcessLabel(virSecurityManagerPtr mgr,
 int virSecurityManagerVerify(virSecurityManagerPtr mgr,
                              virDomainDefPtr def);
 int virSecurityManagerSetImageFDLabel(virSecurityManagerPtr mgr,
-                                      virDomainDefPtr def,
+                                      const virDomainDef *def,
                                       int fd);
 int virSecurityManagerSetTapFDLabel(virSecurityManagerPtr mgr,
-                                    virDomainDefPtr vm,
+                                    const virDomainDef *vm,
                                     int fd);
 char *virSecurityManagerGetMountOptions(virSecurityManagerPtr mgr,
                                         virDomainDefPtr vm);

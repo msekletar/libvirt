@@ -685,12 +685,12 @@ int qemuDomainRefreshVcpuHalted(virQEMUDriverPtr driver,
                                 virDomainObjPtr vm,
                                 int asyncJob);
 
-bool qemuDomainSupportsNicdev(virDomainDefPtr def,
-                              virDomainNetDefPtr net);
+bool qemuDomainSupportsNicdev(const virDomainDef *def,
+                              const virDomainNetDef *net);
 
-bool qemuDomainSupportsNetdev(virDomainDefPtr def,
+bool qemuDomainSupportsNetdev(const virDomainDef *def,
                               virQEMUCapsPtr qemuCaps,
-                              virDomainNetDefPtr net);
+                              const virDomainNetDef *net);
 
 int qemuDomainNetVLAN(virDomainNetDefPtr def);
 

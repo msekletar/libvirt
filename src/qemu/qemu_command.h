@@ -95,8 +95,8 @@ char *qemuBuildNicStr(virDomainNetDefPtr net,
                       int vlan);
 
 /* Current, best practice */
-char *qemuBuildNicDevStr(virDomainDefPtr def,
-                         virDomainNetDefPtr net,
+char *qemuBuildNicDevStr(const virDomainDef *def,
+                         const virDomainNetDef *net,
                          int vlan,
                          unsigned int bootindex,
                          size_t vhostfdSize,

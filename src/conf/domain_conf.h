@@ -2825,16 +2825,16 @@ int virDomainGraphicsListenAppendSocket(virDomainGraphicsDefPtr def,
             ATTRIBUTE_NONNULL(1);
 
 virDomainNetType virDomainNetGetActualType(virDomainNetDefPtr iface);
-const char *virDomainNetGetActualBridgeName(virDomainNetDefPtr iface);
+const char *virDomainNetGetActualBridgeName(const virDomainNetDef *iface);
 int virDomainNetGetActualBridgeMACTableManager(virDomainNetDefPtr iface);
-const char *virDomainNetGetActualDirectDev(virDomainNetDefPtr iface);
-int virDomainNetGetActualDirectMode(virDomainNetDefPtr iface);
+const char *virDomainNetGetActualDirectDev(const virDomainNetDef *iface);
+int virDomainNetGetActualDirectMode(const virDomainNetDef *iface);
 virDomainHostdevDefPtr virDomainNetGetActualHostdev(virDomainNetDefPtr iface);
 virNetDevVPortProfilePtr
-virDomainNetGetActualVirtPortProfile(virDomainNetDefPtr iface);
+virDomainNetGetActualVirtPortProfile(const virDomainNetDef *iface);
 virNetDevBandwidthPtr
 virDomainNetGetActualBandwidth(virDomainNetDefPtr iface);
-virNetDevVlanPtr virDomainNetGetActualVlan(virDomainNetDefPtr iface);
+virNetDevVlanPtr virDomainNetGetActualVlan(const virDomainNetDef *iface);
 bool virDomainNetGetActualTrustGuestRxFilters(virDomainNetDefPtr iface);
 int virDomainNetAppendIPAddress(virDomainNetDefPtr def,
                                 const char *address,
@@ -2979,7 +2979,7 @@ virDomainObjGetState(virDomainObjPtr obj, int *reason)
         ATTRIBUTE_NONNULL(1);
 
 virSecurityLabelDefPtr
-virDomainDefGetSecurityLabelDef(virDomainDefPtr def, const char *model);
+virDomainDefGetSecurityLabelDef(const virDomainDef *def, const char *model);
 
 virSecurityDeviceLabelDefPtr
 virDomainChrDefGetSecurityLabelDef(virDomainChrDefPtr def, const char *model);

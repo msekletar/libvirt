@@ -2457,7 +2457,7 @@ virSecuritySELinuxSetAllLabel(virSecurityManagerPtr mgr,
 
 static int
 virSecuritySELinuxSetImageFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
-                                  virDomainDefPtr def,
+                                  const virDomainDef *def,
                                   int fd)
 {
     virSecurityLabelDefPtr secdef;
@@ -2471,7 +2471,7 @@ virSecuritySELinuxSetImageFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
 
 static int
 virSecuritySELinuxSetTapFDLabel(virSecurityManagerPtr mgr,
-                                virDomainDefPtr def,
+                                const virDomainDef *def,
                                 int fd)
 {
     struct stat buf;

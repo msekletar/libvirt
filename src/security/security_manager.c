@@ -901,7 +901,7 @@ virSecurityManagerVerify(virSecurityManagerPtr mgr,
 
 int
 virSecurityManagerSetImageFDLabel(virSecurityManagerPtr mgr,
-                                  virDomainDefPtr vm,
+                                  const virDomainDef *vm,
                                   int fd)
 {
     if (mgr->drv->domainSetSecurityImageFDLabel) {
@@ -919,7 +919,7 @@ virSecurityManagerSetImageFDLabel(virSecurityManagerPtr mgr,
 
 int
 virSecurityManagerSetTapFDLabel(virSecurityManagerPtr mgr,
-                                virDomainDefPtr vm,
+                                const virDomainDef *vm,
                                 int fd)
 {
     if (mgr->drv->domainSetSecurityTapFDLabel) {

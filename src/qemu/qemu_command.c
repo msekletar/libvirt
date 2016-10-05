@@ -289,7 +289,7 @@ qemuVirCommandGetDevSet(virCommandPtr cmd, int fd)
 static int
 qemuBuildDeviceAddressStr(virBufferPtr buf,
                           const virDomainDef *domainDef,
-                          virDomainDeviceInfoPtr info,
+                          const virDomainDeviceInfo *info,
                           virQEMUCapsPtr qemuCaps)
 {
     int ret = -1;
@@ -391,7 +391,7 @@ qemuBuildDeviceAddressStr(virBufferPtr buf,
 
 static int
 qemuBuildRomStr(virBufferPtr buf,
-                virDomainDeviceInfoPtr info)
+                const virDomainDeviceInfo *info)
 {
     if (info->rombar || info->romfile) {
         if (info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
@@ -3504,8 +3504,8 @@ qemuBuildNicStr(virDomainNetDefPtr net,
 
 
 char *
-qemuBuildNicDevStr(virDomainDefPtr def,
-                   virDomainNetDefPtr net,
+qemuBuildNicDevStr(const virDomainDef *def,
+                   const virDomainNetDef *net,
                    int vlan,
                    unsigned int bootindex,
                    size_t vhostfdSize,
@@ -7808,7 +7808,7 @@ static int
 qemuBuildVhostuserCommandLine(virQEMUDriverPtr driver,
                               virLogManagerPtr logManager,
                               virCommandPtr cmd,
-                              virDomainDefPtr def,
+                              const virDomainDef *def,
                               virDomainNetDefPtr net,
                               virQEMUCapsPtr qemuCaps,
                               unsigned int bootindex)
@@ -7900,7 +7900,7 @@ static int
 qemuBuildInterfaceCommandLine(virQEMUDriverPtr driver,
                               virLogManagerPtr logManager,
                               virCommandPtr cmd,
-                              virDomainDefPtr def,
+                              const virDomainDef *def,
                               virDomainNetDefPtr net,
                               virQEMUCapsPtr qemuCaps,
                               int vlan,
@@ -8206,7 +8206,7 @@ static int
 qemuBuildNetCommandLine(virQEMUDriverPtr driver,
                         virLogManagerPtr logManager,
                         virCommandPtr cmd,
-                        virDomainDefPtr def,
+                        const virDomainDef *def,
                         virQEMUCapsPtr qemuCaps,
                         virNetDevVPortProfileOp vmop,
                         bool standalone,

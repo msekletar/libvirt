@@ -56,8 +56,8 @@ void virDomainAuditNet(virDomainObjPtr vm,
                        const char *reason,
                        bool success)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4);
-void virDomainAuditNetDevice(virDomainDefPtr vmDef,
-                             virDomainNetDefPtr netDef,
+void virDomainAuditNetDevice(const virDomainDef *vmDef,
+                             const virDomainNetDef *netDef,
                              const char *device,
                              bool success)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);

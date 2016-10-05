@@ -197,7 +197,7 @@ virSecurityDomainVerifyNop(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
 
 static int
 virSecurityDomainSetFDLabelNop(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
-                               virDomainDefPtr sec ATTRIBUTE_UNUSED,
+                               const virDomainDef *vm ATTRIBUTE_UNUSED,
                                int fd ATTRIBUTE_UNUSED)
 {
     return 0;

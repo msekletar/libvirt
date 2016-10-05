@@ -252,7 +252,7 @@ qemuInterfaceStopDevices(virDomainDefPtr def)
  * Returns 0 on success or -1 in case of error.
  */
 int
-qemuInterfaceDirectConnect(virDomainDefPtr def,
+qemuInterfaceDirectConnect(const virDomainDef *def,
                            virQEMUDriverPtr driver,
                            virDomainNetDefPtr net,
                            int *tapfd,
@@ -405,11 +405,11 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfigPtr cfg,
  * (i.e. if the connection is made with a tap device)
  */
 int
-qemuInterfaceEthernetConnect(virDomainDefPtr def,
-                           virQEMUDriverPtr driver,
-                           virDomainNetDefPtr net,
-                           int *tapfd,
-                           size_t tapfdSize)
+qemuInterfaceEthernetConnect(const virDomainDef *def,
+                             virQEMUDriverPtr driver,
+                             virDomainNetDefPtr net,
+                             int *tapfd,
+                             size_t tapfdSize)
 {
     virMacAddr tapmac;
     int ret = -1;
@@ -499,7 +499,7 @@ qemuInterfaceEthernetConnect(virDomainDefPtr def,
  * device connecting to a bridge device)
  */
 int
-qemuInterfaceBridgeConnect(virDomainDefPtr def,
+qemuInterfaceBridgeConnect(const virDomainDef *def,
                            virQEMUDriverPtr driver,
                            virDomainNetDefPtr net,
                            int *tapfd,
@@ -621,7 +621,7 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
  *         -1 on failure
  */
 int
-qemuInterfaceOpenVhostNet(virDomainDefPtr def,
+qemuInterfaceOpenVhostNet(const virDomainDef *def,
                           virDomainNetDefPtr net,
                           virQEMUCapsPtr qemuCaps,
                           int *vhostfd,

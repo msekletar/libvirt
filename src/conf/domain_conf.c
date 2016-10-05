@@ -24929,7 +24929,7 @@ virDomainNetGetActualType(virDomainNetDefPtr iface)
 }
 
 const char *
-virDomainNetGetActualBridgeName(virDomainNetDefPtr iface)
+virDomainNetGetActualBridgeName(const virDomainNetDef *iface)
 {
     if (iface->type == VIR_DOMAIN_NET_TYPE_BRIDGE)
         return iface->data.bridge.brname;
@@ -24953,7 +24953,7 @@ virDomainNetGetActualBridgeMACTableManager(virDomainNetDefPtr iface)
 }
 
 const char *
-virDomainNetGetActualDirectDev(virDomainNetDefPtr iface)
+virDomainNetGetActualDirectDev(const virDomainNetDef *iface)
 {
     if (iface->type == VIR_DOMAIN_NET_TYPE_DIRECT)
         return iface->data.direct.linkdev;
@@ -24965,7 +24965,7 @@ virDomainNetGetActualDirectDev(virDomainNetDefPtr iface)
 }
 
 int
-virDomainNetGetActualDirectMode(virDomainNetDefPtr iface)
+virDomainNetGetActualDirectMode(const virDomainNetDef *iface)
 {
     if (iface->type == VIR_DOMAIN_NET_TYPE_DIRECT)
         return iface->data.direct.mode;
@@ -24989,7 +24989,7 @@ virDomainNetGetActualHostdev(virDomainNetDefPtr iface)
 }
 
 virNetDevVPortProfilePtr
-virDomainNetGetActualVirtPortProfile(virDomainNetDefPtr iface)
+virDomainNetGetActualVirtPortProfile(const virDomainNetDef *iface)
 {
     switch (iface->type) {
     case VIR_DOMAIN_NET_TYPE_DIRECT:
@@ -25025,9 +25025,9 @@ virDomainNetGetActualBandwidth(virDomainNetDefPtr iface)
 }
 
 virNetDevVlanPtr
-virDomainNetGetActualVlan(virDomainNetDefPtr iface)
+virDomainNetGetActualVlan(const virDomainNetDef *iface)
 {
-    virNetDevVlanPtr vlan = &iface->vlan;
+    virNetDevVlanPtr vlan = &((virDomainNetDefPtr)iface)->vlan;
 
     /* if there is an ActualNetDef, *always* return
      * its vlan rather than the NetDef's vlan.
@@ -25268,7 +25268,7 @@ virDomainDeviceDefCopy(virDomainDeviceDefPtr src,
 
 
 virSecurityLabelDefPtr
-virDomainDefGetSecurityLabelDef(virDomainDefPtr def, const char *model)
+virDomainDefGetSecurityLabelDef(const virDomainDef *def, const char *model)
 {
     size_t i;
     virSecurityLabelDefPtr seclabel = NULL;

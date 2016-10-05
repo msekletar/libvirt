@@ -336,7 +336,8 @@ virDomainAuditNet(virDomainObjPtr vm,
  * Log an audit message about an attempted network device open.
  */
 void
-virDomainAuditNetDevice(virDomainDefPtr vmDef, virDomainNetDefPtr netDef,
+virDomainAuditNetDevice(const virDomainDef *vmDef,
+                        const virDomainNetDef *netDef,
                         const char *device, bool success)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];

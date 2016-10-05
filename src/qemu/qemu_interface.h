@@ -34,26 +34,26 @@ int qemuInterfaceStartDevices(virDomainDefPtr def);
 int qemuInterfaceStopDevice(virDomainNetDefPtr net);
 int qemuInterfaceStopDevices(virDomainDefPtr def);
 
-int qemuInterfaceDirectConnect(virDomainDefPtr def,
-                                virQEMUDriverPtr driver,
-                                virDomainNetDefPtr net,
-                                int *tapfd,
-                                size_t tapfdSize,
-                                virNetDevVPortProfileOp vmop);
-int qemuInterfaceEthernetConnect(virDomainDefPtr def,
+int qemuInterfaceDirectConnect(const virDomainDef *def,
                                virQEMUDriverPtr driver,
                                virDomainNetDefPtr net,
                                int *tapfd,
-                               size_t tapfdSize);
+                               size_t tapfdSize,
+                               virNetDevVPortProfileOp vmop);
+int qemuInterfaceEthernetConnect(const virDomainDef *def,
+                                 virQEMUDriverPtr driver,
+                                 virDomainNetDefPtr net,
+                                 int *tapfd,
+                                 size_t tapfdSize);
 
-int qemuInterfaceBridgeConnect(virDomainDefPtr def,
+int qemuInterfaceBridgeConnect(const virDomainDef *def,
                                virQEMUDriverPtr driver,
                                virDomainNetDefPtr net,
                                int *tapfd,
                                size_t *tapfdSize)
     ATTRIBUTE_NONNULL(2);
 
-int qemuInterfaceOpenVhostNet(virDomainDefPtr def,
+int qemuInterfaceOpenVhostNet(const virDomainDef *def,
                               virDomainNetDefPtr net,
                               virQEMUCapsPtr qemuCaps,
                               int *vhostfd,

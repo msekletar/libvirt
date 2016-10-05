@@ -1517,7 +1517,7 @@ virSecurityDACClearSocketLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
 
 static int
 virSecurityDACSetImageFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
-                              virDomainDefPtr def ATTRIBUTE_UNUSED,
+                              const virDomainDef *def ATTRIBUTE_UNUSED,
                               int fd ATTRIBUTE_UNUSED)
 {
     return 0;
@@ -1525,7 +1525,7 @@ virSecurityDACSetImageFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
 
 static int
 virSecurityDACSetTapFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
-                            virDomainDefPtr def ATTRIBUTE_UNUSED,
+                            const virDomainDef *def ATTRIBUTE_UNUSED,
                             int fd ATTRIBUTE_UNUSED)
 {
     return 0;

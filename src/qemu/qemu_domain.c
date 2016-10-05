@@ -6154,8 +6154,8 @@ qemuDomainRefreshVcpuHalted(virQEMUDriverPtr driver,
 }
 
 bool
-qemuDomainSupportsNicdev(virDomainDefPtr def,
-                         virDomainNetDefPtr net)
+qemuDomainSupportsNicdev(const virDomainDef *def,
+                         const virDomainNetDef *net)
 {
     /* non-virtio ARM nics require legacy -net nic */
     if (((def->os.arch == VIR_ARCH_ARMV7L) ||
@@ -6168,9 +6168,9 @@ qemuDomainSupportsNicdev(virDomainDefPtr def,
 }
 
 bool
-qemuDomainSupportsNetdev(virDomainDefPtr def,
+qemuDomainSupportsNetdev(const virDomainDef *def,
                          virQEMUCapsPtr qemuCaps,
-                         virDomainNetDefPtr net)
+                         const virDomainNetDef *net)
 {
     if (!qemuDomainSupportsNicdev(def, net))
         return false;

@@ -382,7 +382,7 @@ virDomainPCIAddressSetGrow(virDomainPCIAddressSetPtr addrs,
 
 
 char *
-virDomainPCIAddressAsString(virPCIDeviceAddressPtr addr)
+virDomainPCIAddressAsString(const virPCIDeviceAddress *addr)
 {
     char *str;
 
@@ -1351,7 +1351,7 @@ virDomainVirtioSerialAddrRelease(virDomainVirtioSerialAddrSetPtr addrs,
 
 
 bool
-virDomainUSBAddressPortIsValid(unsigned int *port)
+virDomainUSBAddressPortIsValid(const unsigned int *port)
 {
     return port[0] != 0;
 }
@@ -1359,7 +1359,7 @@ virDomainUSBAddressPortIsValid(unsigned int *port)
 
 void
 virDomainUSBAddressPortFormatBuf(virBufferPtr buf,
-                                 unsigned int *port)
+                                 const unsigned int *port)
 {
     size_t i;
 

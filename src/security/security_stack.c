@@ -479,7 +479,7 @@ virSecurityStackClearSocketLabel(virSecurityManagerPtr mgr,
 
 static int
 virSecurityStackSetImageFDLabel(virSecurityManagerPtr mgr,
-                                virDomainDefPtr vm,
+                                const virDomainDef *vm,
                                 int fd)
 {
     virSecurityStackDataPtr priv = virSecurityManagerGetPrivateData(mgr);
@@ -496,7 +496,7 @@ virSecurityStackSetImageFDLabel(virSecurityManagerPtr mgr,
 
 static int
 virSecurityStackSetTapFDLabel(virSecurityManagerPtr mgr,
-                              virDomainDefPtr vm,
+                              const virDomainDef *vm,
                               int fd)
 {
     virSecurityStackDataPtr priv = virSecurityManagerGetPrivateData(mgr);

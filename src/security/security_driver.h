@@ -102,10 +102,10 @@ typedef int (*virSecurityDomainSetChildProcessLabel) (virSecurityManagerPtr mgr,
 typedef int (*virSecurityDomainSecurityVerify) (virSecurityManagerPtr mgr,
                                                 virDomainDefPtr def);
 typedef int (*virSecurityDomainSetImageFDLabel) (virSecurityManagerPtr mgr,
-                                                 virDomainDefPtr def,
+                                                 const virDomainDef *def,
                                                  int fd);
 typedef int (*virSecurityDomainSetTapFDLabel) (virSecurityManagerPtr mgr,
-                                               virDomainDefPtr def,
+                                               const virDomainDef *def,
                                                int fd);
 typedef char *(*virSecurityDomainGetMountOptions) (virSecurityManagerPtr mgr,
                                                    virDomainDefPtr def);
