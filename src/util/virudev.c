@@ -21,19 +21,27 @@
 
 #include <config.h>
 
+#include <libudev.h>
+
 #include "virudev.h"
 #include "virobject.h"
 
+#define VIR_FROM_THIS VIR_FROM_NONE
+
 struct _virUdevMgr {
     virObjectLockable parent;
+
+    struct udev *udev;
 };
 
 static virClassPtr virUdevMgrClass;
 
 static void
-virUdevMgrDispose(void *obj ATTRIBUTE_UNUSED)
+virUdevMgrDispose(void *obj)
 {
-    /* nada */
+    virUdevMgrPtr mgr = obj;
+
+    udev_unref(mgr->udev);
 }
 
 static int virUdevMgrOnceInit(void)
@@ -59,5 +67,63 @@ virUdevMgrPtr virUdevMgrNew(void)
     if (!(mgr = virObjectLockableNew(virUdevMgrClass)))
         return NULL;
 
+    if (!(mgr->udev = udev_new()))
+        goto error;
+
     return mgr;
+
+ error:
+    virObjectUnref(mgr);
+    return NULL;
+}
+
+static struct udev_device *
+virUdevMgrFindDevice(virUdevMgrPtr mgr,
+                     const char *path)
+{
+    if (STRPREFIX(path, "/dev/")) {
+        struct stat statbuf;
+        char type;
+
+        if (stat(path, &statbuf) < 0)
+            return NULL;
+
+        if (S_ISBLK(statbuf.st_mode)) {
+            type = 'b';
+        } else if (S_ISCHR(statbuf.st_mode)) {
+            type = 'c';
+        } else {
+            virReportError(VIR_ERR_NO_NODE_DEVICE,
+                           _("no node device with matching name '%s'"),
+                           path);
+            return NULL;
+        }
+
+        return udev_device_new_from_devnum(mgr->udev, type, statbuf.st_rdev);
+    } else if (STRPREFIX(path, "/sys/")) {
+        return udev_device_new_from_syspath(mgr->udev, path);
+    } else {
+        virReportError(VIR_ERR_NO_NODE_DEVICE,
+                       _("no node device with matching name '%s'"),
+                       path);
+        return NULL;
+    }
+}
+
+int
+virUdevMgrAddLabel(virUdevMgrPtr mgr,
+                   const char *path)
+{
+    int ret = -1;
+    struct udev_device *device;
+
+    if (!(device = virUdevMgrFindDevice(mgr, path)))
+        return ret;
+
+}
+
+int
+virUdevMgrRemoveLabel(virUdevMgrPtr mgr,
+                      const char *device)
+{
 }

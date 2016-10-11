@@ -27,4 +27,9 @@ typedef virUdevMgr *virUdevMgrPtr;
 
 virUdevMgrPtr virUdevMgrNew(void);
 
+int virUdevMgrAddLabel(virUdevMgrPtr mgr,
+                       const char *device);
+int virUdevMgrRemoveLabel(virUdevMgrPtr mgr,
+                          const char *device);
+
 #endif
