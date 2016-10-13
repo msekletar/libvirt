@@ -2875,11 +2875,14 @@ testNodeAllocPages(virConnectPtr conn,
                    unsigned int flags)
 {
     testDriverPtr privconn = conn->privateData;
+    virCapsPtr caps;
     bool add = !(flags & VIR_NODE_ALLOC_PAGES_SET);
     ssize_t i, ncounts = 0;
     size_t j;
     int lastCell;
     int ret = -1;
+    unsigned long long *tmpPageCounts = NULL;
+    bool mangledPageCounts = false;
 
     virCheckFlags(VIR_NODE_ALLOC_PAGES_SET, -1);
 
@@ -2896,49 +2899,91 @@ testNodeAllocPages(virConnectPtr conn,
 
     lastCell = MIN(lastCell, startCell + (int) cellCount - 1);
 
-    if (startCell == -1) {
-        /* Okay, hold on to your hats because this is gonna get wild.
-         * startCell == -1 means that user wants us to allocate
-         * pages over all NUMA nodes proportionally. Just
-         * recalculate the pageCounts and we should be good. */
-        for (j = 0; j < npages; j++)
-            pageCounts[j] /= privconn->numCells;
-        startCell = 0;
-        lastCell = privconn->numCells - 1;
-    }
+    if (VIR_ALLOC_N(tmpPageCounts, npages) < 0)
+        goto cleanup;
+
+    memcpy(tmpPageCounts, pageCounts, npages * sizeof(*tmpPageCounts));
 
     for (i = startCell; i <= lastCell; i++) {
         testCellPtr cell = &privconn->cells[i];
+        unsigned long systemPages = cell->pages[0].pages;
+        unsigned long long totalMem = 0;
         size_t k;
+
+        if (startCell == -1) {
+            /* Okay, hold on to your hats because this is gonna get wild.
+             * startCell == -1 means that user wants us to allocate
+             * pages over all NUMA nodes proportionally. Just
+             * recalculate the pageCounts and we should be good. */
+            for (j = 0; j < npages; j++)
+                tmpPageCounts[j] /= privconn->numCells;
+            mangledPageCounts = true;
+        } else if (mangledPageCounts) {
+            memcpy(tmpPageCounts, pageCounts, npages * sizeof(*tmpPageCounts));
+            mangledPageCounts = false;
+        }
+
+        /* Now, we don't do any allocation so theoretically we could allow just
+         * any pool size. But we can do better and model the real hardware
+         * here. On a real system, you cannot allocate 4K pages. And also, if
+         * you add some huge pages to your pool, the pool of 4k pages shrinks
+         * down. So we have to make sure, that the sum of memory stays the same
+         * after this. */
+        for (j = 0; j < cell->npages; j++)
+            totalMem += cell->pages[j].pagesize * cell->pages[j].pages;
 
         for (j = 0; j < cell->npages; j++) {
             for (k = 0; k < npages; k++) {
-                unsigned long long pagesFree = cell->pages[j].pagesFree;
+                unsigned long long pages = cell->pages[j].pages;
 
                 if (pageSizes[k] != cell->pages[j].pagesize)
                     continue;
 
-                if (add)
-                    pagesFree += pageCounts[k];
-                else
-                    pagesFree = pageCounts[k];
-
-                if (pagesFree > cell->pages[j].pages) {
-                    virReportError(VIR_ERR_OPERATION_FAILED,
-                                   _("Unable to allocate %llu pages"),
-                                   pagesFree);
+                if (pageSizes[k] == 4) {
+                    /* Special case as kernel handles system pages
+                     * differently to huge pages. */
+                    virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                                   _("system pages pool can't be modified"));
                     goto cleanup;
                 }
 
-                cell->pages[j].pagesFree = pagesFree;
+                if (add)
+                    pages += tmpPageCounts[k];
+                else
+                    pages = tmpPageCounts[k];
+
+                /* Now check if we can decrease size of 4K pool in order to
+                 * make place for new huge pages. However, the minimal size of
+                 * a pool can be zero, obviously. */
+                if (pages * pageSizes[k] > systemPages * 4) {
+                    virReportError(VIR_ERR_OPERATION_FAILED,
+                                   _("Unable to allocate %llu pages. Allocated only %lu"),
+                                   pages, cell->pages[j].pages);
+                    goto cleanup;
+                }
+
+                /* So we can change the size for this pool and shrink down the
+                 * system page pool. The trick here is to firstly move all
+                 * memory occupied by this pool to system page pool and then
+                 * just move some memory from there to this pool. */
+                cell->pages[0].pages += cell->pages[j].pagesize * cell->pages[j].pages;
+                cell->pages[j].pages = pages;
+                cell->pages[0].pages -= cell->pages[j].pagesize * cell->pages[j].pages;
                 ncounts++;
             }
         }
     }
 
+    if (!(caps = testBuildCapabilities(conn)))
+        goto cleanup;
+
+    virObjectUnref(privconn->caps);
+    privconn->caps = caps;
+
     ret = ncounts;
  cleanup:
     testDriverUnlock(privconn);
+    VIR_FREE(tmpPageCounts);
     return ret;
 }
 
