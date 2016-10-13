@@ -302,9 +302,8 @@ testDomainDefNamespaceParse(xmlDocPtr xml ATTRIBUTE_UNUSED,
 }
 
 static virCapsPtr
-testBuildCapabilities(virConnectPtr conn)
+testBuildCapabilities(testDriverPtr driver)
 {
-    testDriverPtr driver = conn->privateData;
     virCapsPtr caps;
     virCapsGuestPtr guest;
     int guest_types[] = { VIR_DOMAIN_OSTYPE_HVM,
@@ -1230,7 +1229,7 @@ testOpenFromFile(virConnectPtr conn, const char *file)
     testDriverLock(privconn);
     conn->privateData = privconn;
 
-    if (!(privconn->caps = testBuildCapabilities(conn)))
+    if (!(privconn->caps = testBuildCapabilities(privconn)))
         goto error;
 
     if (!(doc = virXMLParseFileCtxt(file, &ctxt)))
@@ -1299,7 +1298,7 @@ testOpenDefault(virConnectPtr conn)
         privconn->cells[i / 8].cpus[(i % 8)].siblings = siblings;
     }
 
-    if (!(privconn->caps = testBuildCapabilities(conn)))
+    if (!(privconn->caps = testBuildCapabilities(privconn)))
         goto error;
 
     if (!(doc = virXMLParseStringCtxt(defaultConnXML,
