@@ -304,7 +304,7 @@ testDomainDefNamespaceParse(xmlDocPtr xml ATTRIBUTE_UNUSED,
 static virCapsPtr
 testBuildCapabilities(virConnectPtr conn)
 {
-    testDriverPtr privconn = conn->privateData;
+    testDriverPtr driver = conn->privateData;
     virCapsPtr caps;
     virCapsGuestPtr guest;
     int guest_types[] = { VIR_DOMAIN_OSTYPE_HVM,
@@ -325,12 +325,12 @@ testBuildCapabilities(virConnectPtr conn)
     caps->host.pagesSize[caps->host.nPagesSize++] = 4;
     caps->host.pagesSize[caps->host.nPagesSize++] = 2048;
 
-    for (i = 0; i < privconn->numCells; i++) {
+    for (i = 0; i < driver->numCells; i++) {
         virCapsHostNUMACellCPUPtr cpu_cells;
         virCapsHostNUMACellPageInfoPtr pages;
         size_t nPages;
 
-        if (VIR_ALLOC_N(cpu_cells, privconn->cells[i].numCpus) < 0 ||
+        if (VIR_ALLOC_N(cpu_cells, driver->cells[i].numCpus) < 0 ||
             VIR_ALLOC_N(pages, caps->host.nPagesSize) < 0) {
                 VIR_FREE(cpu_cells);
                 goto error;
@@ -338,16 +338,16 @@ testBuildCapabilities(virConnectPtr conn)
 
         nPages = caps->host.nPagesSize;
 
-        memcpy(cpu_cells, privconn->cells[i].cpus,
-               sizeof(*cpu_cells) * privconn->cells[i].numCpus);
+        memcpy(cpu_cells, driver->cells[i].cpus,
+               sizeof(*cpu_cells) * driver->cells[i].numCpus);
 
         for (j = 0; j < nPages; j++)
             pages[j].size = caps->host.pagesSize[j];
 
-        pages[0].avail = privconn->cells[i].mem / pages[0].size;
+        pages[0].avail = driver->cells[i].mem / pages[0].size;
 
-        if (virCapabilitiesAddHostNUMACell(caps, i, privconn->cells[i].mem,
-                                           privconn->cells[i].numCpus,
+        if (virCapabilitiesAddHostNUMACell(caps, i, driver->cells[i].mem,
+                                           driver->cells[i].numCpus,
                                            cpu_cells, 0, NULL, nPages, pages) < 0)
             goto error;
     }
