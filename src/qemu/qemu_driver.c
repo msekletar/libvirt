@@ -3831,7 +3831,7 @@ qemuDomainScreenshot(virDomainPtr dom,
     }
     unlink_tmp = true;
 
-    virSecurityManagerSetSavedStateLabel(qemu_driver->securityManager, vm->def, tmp);
+    virSecurityManagerSetSavedStateLabel(driver->securityManager, vm->def, tmp);
 
     qemuDomainObjEnterMonitor(driver, vm);
     if (qemuMonitorScreendump(priv->mon, tmp) < 0) {
@@ -11449,7 +11449,7 @@ qemuDomainMemoryPeek(virDomainPtr dom,
         goto endjob;
     }
 
-    virSecurityManagerSetSavedStateLabel(qemu_driver->securityManager, vm->def, tmp);
+    virSecurityManagerSetSavedStateLabel(driver->securityManager, vm->def, tmp);
 
     priv = vm->privateData;
     qemuDomainObjEnterMonitor(driver, vm);
